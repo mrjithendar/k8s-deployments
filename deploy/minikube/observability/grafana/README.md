@@ -21,6 +21,13 @@ kubectl config get-contexts
 KUBE_CONTEXT=mk4 bash deploy/minikube/deploy-grafana.sh
 ```
 
+## Public read (anonymous, behind Cloudflare's human check)
+
+Off by default. With `grafana_public` set in `minikube-infrastructure/vars/mk4.tfvars`, anonymous visitors are
+Viewers of the org `Public`: the Prometheus data source and the dashboards listed under `public` in
+`dashboards/values.yaml`, nothing from Loki or Jaeger. Steps, limits and the Cloudflare rule:
+[docs/grafana-public.md](../../../../docs/grafana-public.md).
+
 ## What is deployed
 
 - Pinned Grafana community Helm chart **14.0.1**, release `grafana`, namespace `monitoring`.

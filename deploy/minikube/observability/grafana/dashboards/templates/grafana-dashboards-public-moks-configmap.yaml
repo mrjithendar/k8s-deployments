@@ -1,0 +1,2 @@
+# Grafana org "Public", folder moks (values public.folders.moks; templates/_helpers.tpl). Only while public.enabled.
+{{ include "dashboards.public" (dict "root" . "folder" "moks") }}

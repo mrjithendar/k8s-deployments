@@ -92,7 +92,8 @@ resource "helm_release" "istio_edge" {
 
   values = [
     file("${local.minikube}/istio/edge/values.yaml"),
-    # Cloudflare in front (values "cloudflare"): the visitor address from CF-Connecting-IP, and Access on the admin tools.
+    # Cloudflare in front (values "cloudflare"): the visitor address from CF-Connecting-IP, Access on the admin tools,
+    # and the public Grafana (var.grafana_public) served only through Cloudflare, whose rule runs the human check.
     yamlencode({ cloudflare = {
       proxied = var.cloudflare_proxied
       access = {
@@ -100,6 +101,7 @@ resource "helm_release" "istio_edge" {
         teamDomain = try(var.cloudflare_access.team_domain, "")
         audiences  = try(var.cloudflare_access.audiences, [])
       }
+      public = var.grafana_public == null ? [] : ["/grafana"]
     } }),
     local.chart_checksum["istio/edge"],
   ]

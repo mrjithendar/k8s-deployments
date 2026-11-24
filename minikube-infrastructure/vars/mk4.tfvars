@@ -24,6 +24,13 @@ cloudflare_proxied = true
 #   audiences   = ["<Application Audience (AUD) tag>"]
 # }
 
+# Read-only Grafana for everyone behind Cloudflare's human check (docs/grafana-public.md). Uncomment only after steps 1-3
+# there: the Cloudflare WAF rule exists, and the Grafana org "Public" exists (put the orgId it returned here). Grafana
+# does not start if the org is missing. /grafana then leaves the Access list above.
+# grafana_public = {
+#   org_id = <orgId of "Public">
+# }
+
 # Applications on the shared cluster (postgres.tf). Each gets database + owner role <key> and Secret
 # <namespace>/postgres-db-credentials. Listed ahead of moving them off their own PostgreSQL pods (README.md, PostgreSQL,
 # "Moving an application"); until an application switches, its database here stays empty.

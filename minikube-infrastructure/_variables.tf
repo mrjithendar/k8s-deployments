@@ -162,6 +162,18 @@ variable "cloudflare_access" {
   }
 }
 
+variable "grafana_public" {
+  description = "Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Anonymous visitors become Viewers of the Grafana org \"Public\": the Prometheus data source only, and the dashboards listed under `public` in the dashboards chart's values.yaml. The gateway serves /grafana only to Cloudflare, whose WAF rule asks each visitor to prove they are human, and /grafana leaves Cloudflare Access. null = Grafana needs a login, as before. Requires cloudflare_proxied. Create the org in Grafana first: provisioning into an org that does not exist stops Grafana from starting."
+  type = object({
+    org_id = number # the orgId Grafana returned when the org "Public" was created (never 1, the main org)
+  })
+  default = null
+  validation {
+    condition     = var.grafana_public == null || try(var.grafana_public.org_id >= 2 && floor(var.grafana_public.org_id) == var.grafana_public.org_id, false)
+    error_message = "org_id is the whole-number id of the org \"Public\": 2 or more (1 is the main org, which has Loki and Jaeger)."
+  }
+}
+
 variable "github_runners_config_url" {
   description = "Where the runner scale set registers (runners.tf): https://github.com/<organization> for every repository of an organization, or https://github.com/<owner>/<repository> for one repository."
   type        = string

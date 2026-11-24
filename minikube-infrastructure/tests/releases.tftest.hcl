@@ -468,3 +468,87 @@ run "github_runners_bad_config_url_fails" {
 
   expect_failures = [var.github_runners_config_url]
 }
+
+# Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Off: login only, nothing public on the gateway.
+run "grafana_private_by_default" {
+  command = plan
+
+  variables {
+    grafana_public = null
+  }
+
+  assert {
+    condition = (
+      length(helm_release.grafana.values) == 1 &&
+      !yamldecode(helm_release.grafana_dashboards.values[0]).public.enabled &&
+      length(yamldecode(helm_release.istio_edge.values[1]).cloudflare.public) == 0
+    )
+    error_message = "Without grafana_public Grafana keeps its login, no public dashboards are rendered and the gateway has no public path."
+  }
+}
+
+run "grafana_public" {
+  command = plan
+
+  variables {
+    cloudflare_proxied = true
+    grafana_public     = { org_id = 2 }
+  }
+
+  assert {
+    condition = (
+      yamldecode(helm_release.grafana.values[1])["grafana.ini"]["auth.anonymous"].enabled &&
+      yamldecode(helm_release.grafana.values[1])["grafana.ini"]["auth.anonymous"].org_name == "Public" &&
+      yamldecode(helm_release.grafana.values[1])["grafana.ini"]["auth.anonymous"].org_role == "Viewer"
+    )
+    error_message = "Anonymous visitors are Viewers of the org \"Public\"."
+  }
+
+  assert {
+    # Only Prometheus: Loki and Jaeger carry visitor addresses, and a Viewer can query every data source of its org.
+    condition = (
+      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources-public.yaml"].datasources : "${ds.type}/${ds.uid}/${ds.orgId}"] == ["prometheus/roboshop-prometheus/2"] &&
+      alltrue([for p in yamldecode(helm_release.grafana.values[1]).dashboardProviders["dashboardproviders-public.yaml"].providers : p.orgId == 2 && !p.editable]) &&
+      length(yamldecode(helm_release.grafana.values[1]).dashboardProviders["dashboardproviders-public.yaml"].providers) == length(yamldecode(helm_release.grafana.values[1]).dashboardsConfigMaps)
+    )
+    error_message = "The org \"Public\" gets the Prometheus data source only, and read-only dashboard folders from their own ConfigMaps."
+  }
+
+  assert {
+    # The chart puts data sources and dashboard providers in one ConfigMap, keyed by file name: a shared name drops one.
+    condition = length(setintersection(
+      concat(keys(yamldecode(helm_release.grafana.values[1]).datasources), ["datasources.yaml", "dashboardproviders.yaml"]),
+      keys(yamldecode(helm_release.grafana.values[1]).dashboardProviders),
+    )) == 0 && !contains(keys(yamldecode(helm_release.grafana.values[1]).datasources), "datasources.yaml")
+    error_message = "The public data source and dashboard provider files need names of their own."
+  }
+
+  assert {
+    condition = (
+      yamldecode(helm_release.grafana_dashboards.values[0]).public.enabled &&
+      yamldecode(helm_release.istio_edge.values[1]).cloudflare.public == ["/grafana"]
+    )
+    error_message = "The public dashboards are rendered, and the gateway serves /grafana only through Cloudflare."
+  }
+}
+
+run "grafana_public_needs_cloudflare" {
+  command = plan
+
+  variables {
+    cloudflare_proxied = false
+    grafana_public     = { org_id = 2 }
+  }
+
+  expect_failures = [helm_release.grafana]
+}
+
+run "grafana_public_never_the_main_org" {
+  command = plan
+
+  variables {
+    grafana_public = { org_id = 1 }
+  }
+
+  expect_failures = [var.grafana_public]
+}

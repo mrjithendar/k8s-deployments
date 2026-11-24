@@ -162,7 +162,8 @@ cloudflare:
     # The Application Audience (AUD) tag of each Access application that covers these paths.
     audiences: []
     # Path prefixes behind Access (each also matches prefix/*). Machine endpoints with their own gateway login are in
-    # `except`; CI reaches the others with an Access service token (CF-Access-Client-Id / -Secret headers).
+    # `except`; CI reaches the others with an Access service token (CF-Access-Client-Id / -Secret headers). A prefix
+    # that is also in `public` below is left out.
     prefixes:
       - /argocd
       - /kiali
@@ -176,3 +177,9 @@ cloudflare:
     except:
       - /prometheus/api/v1/write
       - /loki/api/v1/push
+  # Path prefixes open to everyone, but only through Cloudflare (templates/cloudflare-public.yaml; each also matches
+  # prefix/*): a Cloudflare WAF rule guards them (the "verify you are human" check), not a login, so the gateway refuses
+  # them on any connection that does not come from Cloudflare's ranges. Otherwise anyone could skip the check by
+  # connecting to the server's address directly. Not behind Access either (see access.prefixes). Set by Terraform
+  # (["/grafana"] while var.grafana_public is set, docs/grafana-public.md); needs proxied.
+  public: []

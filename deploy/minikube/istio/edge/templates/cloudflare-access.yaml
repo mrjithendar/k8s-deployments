@@ -2,7 +2,8 @@
 {{- if not $.Values.cloudflare.proxied }}{{ fail "cloudflare.access.enabled needs cloudflare.proxied: without Cloudflare in front no request carries an Access token, and every admin tool would answer 403" }}{{ end }}
 {{- $team := required "cloudflare.access.teamDomain is required (<team>.cloudflareaccess.com)" .teamDomain }}
 {{- if empty .audiences }}{{ fail "cloudflare.access.audiences is empty: add each Access application's AUD tag" }}{{ end }}
-{{- $paths := list }}{{ range .prefixes }}{{ $paths = append $paths . }}{{ $paths = append $paths (printf "%s/*" .) }}{{ end }}
+{{- /* A prefix in cloudflare.public is open to everyone behind Cloudflare's human check instead (cloudflare-public.yaml). */}}
+{{- $paths := list }}{{ range .prefixes }}{{ if not (has . $.Values.cloudflare.public) }}{{ $paths = append $paths . }}{{ $paths = append $paths (printf "%s/*" .) }}{{ end }}{{ end }}
 {{- $except := list }}{{ range .except }}{{ $except = append $except . }}{{ $except = append $except (printf "%s/*" .) }}{{ end }}
 # Cloudflare Access in front of the admin tools (values cloudflare.access). Cloudflare runs the login and adds a signed
 # token (Cf-Access-Jwt-Assertion) to every request it lets through, browsers and service tokens alike. The gateway

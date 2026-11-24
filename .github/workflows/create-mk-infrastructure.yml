@@ -74,22 +74,11 @@ jobs:
       TF_VAR_github_runners_app_private_key: ${{ secrets.RUNNERS_GITHUB_APP_PRIVATE_KEY }}
 
     steps:
-      # miniKube and jithendar.com side by side, as on a workstation: grafana.tf reads ../jithendar.com/grafana.
-      # A dashboard change in jithendar.com does not trigger this workflow; run it by hand.
+      # Grafana dashboards are not applied here: mrjithendar/monitoring deploys them (ConfigMaps in grafana-dashboards).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: miniKube
           persist-credentials: false
-
-      # jithendar.com is private: GITHUB_TOKEN only reaches this repository. Read-only deploy key on jithendar.com.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: moks-tech/jithendar.com
-          ref: master
-          path: jithendar.com
-          ssh-key: ${{ secrets.JITHENDAR_COM_DEPLOY_KEY }}
-          persist-credentials: false
-          sparse-checkout: grafana
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -212,9 +201,9 @@ jobs:
         run: |
           set -euo pipefail
           # Only this root's releases.
-          releases='^(metrics-server|cert-manager|letsencrypt-jithendar|istio-base|istio-cni|istiod|istio-ingressgateway|istio-edge|istio-mesh|kiali|prometheus|grafana-dashboards|grafana|loki|otel-collector|jaeger|local-path-provisioner|cnpg|barman-cloud|postgres-cluster|postgres-access|argocd|harbor-access|harbor|gatekeeper|gatekeeper-library|gatekeeper-constraints|arc|arc-runners)$'
+          releases='^(metrics-server|cert-manager|letsencrypt-jithendar|istio-base|istio-cni|istiod|istio-ingressgateway|istio-edge|istio-mesh|kiali|prometheus|grafana|loki|otel-collector|jaeger|local-path-provisioner|cnpg|barman-cloud|postgres-cluster|postgres-access|argocd|harbor-access|harbor|gatekeeper|gatekeeper-library|gatekeeper-constraints|arc|arc-runners)$'
           { echo '### Helm releases'; echo '```'; helm list -A --kube-context mk4 --filter "$releases"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          expected=29
+          expected=28
           deployed=$(helm list -A --kube-context mk4 --filter "$releases" --deployed -q | wc -l)
           [[ "$deployed" -eq "$expected" ]] || { echo "::error::$deployed of $expected releases deployed"; helm list -A --kube-context mk4 --filter "$releases"; exit 1; }
           # A freshly started pod (Kiali warms its caches) and a new route answer 503 for a while: retry for 3 min.

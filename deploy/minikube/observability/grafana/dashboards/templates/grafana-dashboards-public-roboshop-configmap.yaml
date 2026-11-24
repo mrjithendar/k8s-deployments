@@ -1,2 +1,0 @@
-# Grafana org "Public", folder roboshop (values public.folders.roboshop; templates/_helpers.tpl). Only while public.enabled.
-{{ include "dashboards.public" (dict "root" . "folder" "roboshop") }}

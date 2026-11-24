@@ -42,6 +42,10 @@ grafana.ini:
     cookie_samesite: lax
   users:
     allow_sign_up: false
+  # The landing page from mrjithendar/monitoring (dashboards/public/live-infrastructure.json), for anyone with no home
+  # dashboard of their own or of their org. Until the first deploy writes it, Home shows an error.
+  dashboards:
+    default_home_dashboard_path: /tmp/dashboards/public/live-infrastructure.json
   auth.anonymous:
     enabled: false
   analytics:
@@ -118,58 +122,64 @@ datasources:
             customQuery: true
             query: '{namespace=~"jithendar|moks-sre"} |= "trace_id=$${__trace.traceId}"'
 
-# The ConfigMaps come from the grafana-dashboards release (minikube-infrastructure/grafana.tf): RoboShop, MOKS and
-# Platform (the shared PostgreSQL and Redis clusters, bge-m3 embeddings, the Istio mesh and istiod) from ./dashboards,
-# Jithendar.com from the jithendar.com checkout's grafana/ folder.
+# Dashboards: every one lives in mrjithendar/monitoring, whose deploy workflow applies one ConfigMap per dashboard to
+# namespace grafana-dashboards (label grafana_dashboard=1, annotation grafana_folder=<org>/<Folder>). The sidecar
+# below writes each to /tmp/dashboards/<org>/<Folder>/<uid>.json; one file provider per org loads its directory, with
+# a Grafana folder per subdirectory. A file the sidecar removes (its ConfigMap deleted) removes the dashboard.
+sidecar:
+  # Gatekeeper's requiredResources constraint wants a memory limit on every container.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  dashboards:
+    enabled: true
+    # Our providers below (one per org) instead of the chart's single one.
+    SCProvider: false
+    label: grafana_dashboard
+    labelValue: "1"
+    # Only there: Grafana may read ConfigMaps in that namespace and nowhere else (grafana.tf, not the chart's
+    # cluster-wide role; rbac.create below).
+    searchNamespace: grafana-dashboards
+    resource: configmap
+    folder: /tmp/dashboards
+    folderAnnotation: grafana_folder
+    # The providers poll every 30 s. The reload API would need the admin password, which Grafana does not take from
+    # monitoring-auth after its first start.
+    skipReload: true
+
+# The chart's ClusterRole would let Grafana (now open to anyone, read-only) list Secrets and ConfigMaps cluster-wide
+# once a sidecar is on. grafana.tf grants it read on ConfigMaps in grafana-dashboards only.
+rbac:
+  create: false
+
+# orgId 1 is the main org. While var.grafana_public is set, grafana.tf moves "public" to the org "Public".
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1
     providers:
-      - name: roboshop
+      - name: public
         orgId: 1
-        folder: RoboShop
         type: file
-        disableDeletion: true
+        disableDeletion: false
         editable: false
         allowUiUpdates: false
         updateIntervalSeconds: 30
         options:
-          path: /var/lib/grafana/dashboards/roboshop
-      - name: jithendar
+          path: /tmp/dashboards/public
+          foldersFromFilesStructure: true
+      - name: private
         orgId: 1
-        folder: Jithendar.com
         type: file
-        disableDeletion: true
+        disableDeletion: false
         editable: false
         allowUiUpdates: false
         updateIntervalSeconds: 30
         options:
-          path: /var/lib/grafana/dashboards/jithendar
-      - name: moks
-        orgId: 1
-        folder: MOKS
-        type: file
-        disableDeletion: true
-        editable: false
-        allowUiUpdates: false
-        updateIntervalSeconds: 30
-        options:
-          path: /var/lib/grafana/dashboards/moks
-      - name: platform
-        orgId: 1
-        folder: Platform
-        type: file
-        disableDeletion: true
-        editable: false
-        allowUiUpdates: false
-        updateIntervalSeconds: 30
-        options:
-          path: /var/lib/grafana/dashboards/platform
-dashboardsConfigMaps:
-  roboshop: grafana-dashboards-roboshop
-  jithendar: grafana-dashboards-jithendar
-  moks: grafana-dashboards-moks
-  platform: grafana-dashboards-platform
+          path: /tmp/dashboards/private
+          foldersFromFilesStructure: true
 
 # No node pin: the local-path volume keeps the pod on the node that holds its data.
 nodeSelector: {}

@@ -15,7 +15,7 @@ only the AppProject `mk-platform` and the opt-in `harbor`.
 | `istio.tf` | `istio-edge` | local `deploy/minikube/istio/edge` | `istio-ingress` | mk4's public edge: Gateway `public`, wildcard certificate, the jithendar.com routing table, logins (from Secret `gateway-basic-auth`), PROXY protocol, compression; Traefik hand-off while `traefik_enabled` ([README](../deploy/minikube/istio/README.md)) |
 | `kiali.tf` | `kiali` | kiali `kiali-server` 2.34.0 | `istio-system` | `deploy/minikube/istio/kiali.yaml`; Secret `kiali-signing-key` |
 | `prometheus.tf` | `prometheus` | local `deploy/minikube/observability/prometheus` | `monitoring` | chart `values.yaml` |
-| `grafana.tf` | `grafana-dashboards`, `grafana` | local `deploy/minikube/observability/grafana/dashboards`; grafana-community `grafana` 14.0.1 | `monitoring` | `deploy/minikube/observability/grafana/values.yaml`; dashboards from `./dashboards` and `../jithendar.com/grafana` |
+| `grafana.tf` | `grafana` | grafana-community `grafana` 14.0.1 | `monitoring` | `deploy/minikube/observability/grafana/values.yaml`; dashboards from [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring), loaded by the dashboard sidecar from ConfigMaps in namespace `grafana-dashboards` (also Terraform's, with that repository's deploy ServiceAccount `github-dashboards-deployer`) |
 | `loki.tf` | `loki` | local `deploy/minikube/observability/loki` (Loki + Alloy) | `monitoring` | `loki.yaml`, `config.alloy` |
 | `otel-collector.tf` | `otel-collector` | local `deploy/minikube/observability/otel-collector` | `observability` | `collector.yaml` |
 | `jaeger.tf` | `jaeger` | local `deploy/minikube/observability/jaeger` | `observability` | `jaeger.yaml` |
@@ -30,7 +30,7 @@ only the AppProject `mk-platform` and the opt-in `harbor`.
 | `embeddings.tf` | `bge-m3` | local `deploy/minikube/embeddings/bge-m3` (Ollama 0.40.16, model `bge-m3:567m`, weights digest pinned) | `embeddings` | `values.yaml`: http://bge-m3.embeddings:11434 for seo-agent and moks only (NetworkPolicy + enforced AuthorizationPolicy), 1024-dimension vectors on CPU, model on a 10 Gi `hcloud-volumes` claim; namespace (in the mesh) is Terraform's ([README](../deploy/minikube/embeddings/bge-m3/README.md)) |
 
 `versions.tf` (providers, S3 backend), `variables.tf` (`kubeconfig_path` `~/.kube/config`, `kube_context` `mk4`,
-`helm_timeout` 600 s, `jithendar_com_dir` `../../jithendar.com`, `adopt_existing_traefik` false; `true` in mk4.tfvars), `vars/mk4.tfvars`, `tests/` (`terraform test`
+`helm_timeout` 600 s, `adopt_existing_traefik` false; `true` in mk4.tfvars), `vars/mk4.tfvars`, `tests/` (`terraform test`
 with mock providers).
 
 The Loki, Jaeger, OpenTelemetry Collector and dashboard folders used to be Kustomize. They are local Helm charts now:
@@ -257,8 +257,7 @@ gateway's wildcard certificate (`istio-ingress/jithendar-com`, edge chart) uses 
 ## Commands
 
 From the repository root, with AWS credentials for the state bucket and a kubeconfig that has the `mk4` context.
-State: `s3://jithendardharmapuri/terraform/k3s-mk4.tfstate` (same bucket as the tools repository's `infrastructure/`, own key). The
-jithendar.com repository must be checked out beside this one (or set `jithendar_com_dir`).
+State: `s3://jithendardharmapuri/terraform/k3s-mk4.tfstate` (same bucket as the tools repository's `infrastructure/`, own key).
 
 ```bash
 terraform -chdir=minikube-infrastructure init
@@ -277,10 +276,10 @@ because the Loki and Prometheus charts use its Middleware CRD), then `./bootstra
 | Workflow | When | Runner | Does |
 |---|---|---|---|
 | `.github/workflows/check-mk-infrastructure.yml` | pull requests touching this folder, `deploy/minikube/{cert-manager,gatekeeper,istio,observability}`, the metrics-server values | GitHub-hosted, no secrets | fmt, validate, `terraform test`, `helm lint`/`template` of every local chart |
-| `.github/workflows/create-mk-infrastructure.yml` ("Deploy minikube infrastructure") | push to `master` (same paths), or by hand (`plan_only` to see drift) | GitHub-hosted, environment `mk4` | prerequisite checks (no leftover Argo CD apps, Cloudflare Secret), fmt, validate, test, plan (in the run summary), apply, then checks all 29 releases are `deployed`, /grafana, /prometheus, /kiali answer and the runner scale set's listener runs |
+| `.github/workflows/create-mk-infrastructure.yml` ("Deploy minikube infrastructure") | push to `master` (same paths), or by hand (`plan_only` to see drift) | GitHub-hosted, environment `mk4` | prerequisite checks (no leftover Argo CD apps, Cloudflare Secret), fmt, validate, test, plan (in the run summary), apply, then checks all 28 releases are `deployed`, /grafana, /prometheus, /kiali answer and the runner scale set's listener runs |
 
-Both check out `miniKube` and `jithendar.com` (public, `grafana/` only) side by side, so `jithendar_com_dir` keeps its
-default. A dashboard change in jithendar.com does not trigger the deploy; run it by hand.
+Neither deploys Grafana dashboards: [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring) holds every
+one and its own workflow applies them.
 
 The deploy job runs only when repository variable `MINIKUBE_TERRAFORM_APPLY` is `true`. Its access:
 

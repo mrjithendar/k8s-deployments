@@ -159,7 +159,7 @@ def test_addons_are_terraform_releases_not_applications():
     assert not (MONITORING_ARGOCD/'project-observability.yaml').exists()
     releases=set(re.findall(r'^resource "helm_release" "\w+" \{\n\s+name\s+= "([\w-]+)"',
         ''.join(p.read_text() for p in (MINIKUBE/'minikube-infrastructure').glob('*.tf')),re.M))
-    assert set(ADDONS)|{'istio-base','istiod','kiali','letsencrypt-jithendar','grafana-dashboards'}<=releases
+    assert set(ADDONS)|{'istio-base','istiod','kiali','letsencrypt-jithendar','grafana'}<=releases
     # Argo CD may no longer deploy into the namespaces Terraform owns.
     project=yaml.safe_load((MONITORING_ARGOCD/'project-mk-platform.yaml').read_text())['spec']
     assert not {d['namespace'] for d in project['destinations']}&TERRAFORM_NAMESPACES

@@ -34,21 +34,10 @@ jobs:
         working-directory: miniKube
 
     steps:
-      # miniKube and jithendar.com side by side, as on a workstation: grafana.tf reads ../jithendar.com/grafana.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: miniKube
           persist-credentials: false
-
-      # jithendar.com is private: GITHUB_TOKEN only reaches this repository. Read-only deploy key on jithendar.com.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: moks-tech/jithendar.com
-          ref: master
-          path: jithendar.com
-          ssh-key: ${{ secrets.JITHENDAR_COM_DEPLOY_KEY }}
-          persist-credentials: false
-          sparse-checkout: grafana
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -80,7 +69,7 @@ jobs:
           helm lint deploy/minikube/istio/edge -f "$RUNNER_TEMP/edge-ci.yaml"
           helm template check deploy/minikube/istio/edge -f "$RUNNER_TEMP/edge-ci.yaml" > /dev/null
           for chart in cert-manager/issuers gatekeeper/library gatekeeper/constraints harbor/access observability/prometheus observability/loki observability/jaeger \
-                       observability/otel-collector observability/grafana/dashboards; do
+                       observability/otel-collector; do
             helm lint "deploy/minikube/$chart"
             helm template check "deploy/minikube/$chart" > /dev/null
           done

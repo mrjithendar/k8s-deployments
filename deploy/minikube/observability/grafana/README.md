@@ -21,12 +21,21 @@ kubectl config get-contexts
 KUBE_CONTEXT=mk4 bash deploy/minikube/deploy-grafana.sh
 ```
 
+## Dashboards
+
+Every dashboard lives in [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring), one JSON file each under
+`dashboards/<org>/<Folder>/`. Its deploy workflow applies one ConfigMap per dashboard to namespace `grafana-dashboards`
+(label `grafana_dashboard=1`, annotation `grafana_folder=<org>/<Folder>`); the dashboard sidecar in this release
+(`values.yaml`, `sidecar.dashboards`) writes each to `/tmp/dashboards/<org>/<Folder>/`, and one file provider per org
+loads it: `public` (the org `Public` while `grafana_public` is set, else the main org) and `private` (the main org).
+Grafana may read ConfigMaps in that namespace only (`minikube-infrastructure/grafana.tf`; the chart's own RBAC is off).
+Home is that repository's landing page, `live-infrastructure`.
+
 ## Public read (anonymous, behind Cloudflare's human check)
 
 Off by default. With `grafana_public` set in `minikube-infrastructure/vars/mk4.tfvars`, anonymous visitors are
-Viewers of the org `Public`: the Prometheus data source and the dashboards listed under `public` in
-`dashboards/values.yaml`, nothing from Loki or Jaeger. Steps, limits and the Cloudflare rule:
-[docs/grafana-public.md](../../../../docs/grafana-public.md).
+Viewers of the org `Public`: Prometheus and Loki (not Jaeger) and monitoring's `dashboards/public/`. Steps, limits and
+the Cloudflare rule: [docs/grafana-public.md](../../../../docs/grafana-public.md).
 
 ## What is deployed
 

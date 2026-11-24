@@ -1,0 +1,32 @@
+{{- with .Values.cloudflare.public }}
+{{- if not $.Values.cloudflare.proxied }}{{ fail "cloudflare.public needs cloudflare.proxied: its human check is a Cloudflare rule, and without Cloudflare in front every request would be refused" }}{{ end }}
+{{- $paths := list }}{{ range . }}{{ $paths = append $paths . }}{{ $paths = append $paths (printf "%s/*" .) }}{{ end }}
+# Public paths behind Cloudflare's human check (values cloudflare.public, docs/grafana-public.md). The check is a
+# Cloudflare WAF rule, so it only applies to requests that pass through Cloudflare: this policy refuses (403) these
+# paths on every connection that does not come from Cloudflare's ranges, such as one made straight to the server's
+# address with a Host header of jithendar.com.
+#
+# The rule reads remoteIpBlocks, the address the PROXY protocol carries (a Cloudflare edge for proxied traffic), as
+# cloudflare-forged-header does. Not ipBlocks: that is the load balancer, which would refuse everything
+# (2026-11-20 outage, templates/cloudflare-client-address.yaml).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: cloudflare-public
+  namespace: {{ $.Release.Namespace | quote }}
+spec:
+  selector:
+    matchLabels: {{ toYaml $.Values.selector | nindent 6 }}
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRemoteIpBlocks: {{ toYaml $.Values.cloudflare.ipRanges | nindent 14 }}
+      to:
+        - operation:
+            paths: {{ toJson $paths }}
+      when:
+        # Keeps this HTTP rule off the TLS (TCP) hosts (see templates/_helpers.tpl).
+        - key: connection.sni
+          notValues: {{ include "edge.tlsSnis" $ }}
+{{- end }}

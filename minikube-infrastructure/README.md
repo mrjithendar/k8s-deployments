@@ -44,7 +44,7 @@ All through the Istio gateway on `jithendar.com` (routing table and logins: `dep
 
 | URL | Sign-in |
 |---|---|
-| https://jithendar.com/grafana/ | Grafana admin from Secret `monitoring/monitoring-auth` |
+| https://jithendar.com/grafana/ | Grafana admin from Secret `monitoring/monitoring-auth`; while `grafana_public` is set, also anyone, read-only, after Cloudflare's human check (`docs/grafana-public.md`) |
 | https://jithendar.com/prometheus/ | basic auth on the gateway, same Secret (`scripts/istio/gateway-basic-auth.py`) |
 | https://jithendar.com/kiali/ | ServiceAccount token, view only (below) |
 | https://jithendar.com/loki/api/v1/{query_range,labels,label/…,format_query} | basic auth, Secret `monitoring/loki-read-auth` |

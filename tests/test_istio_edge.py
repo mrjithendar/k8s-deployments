@@ -179,3 +179,35 @@ def test_the_forged_header_rule_judges_the_proxy_protocol_address_not_the_load_b
     assert source['notRemoteIpBlocks'] == VALUES['cloudflare']['ipRanges']
     assert {'key': 'request.headers[cf-connecting-ip]', 'values': ['*']} in rule['when']
     assert not [d for d in render() if d['metadata']['name'] == 'cloudflare-forged-header']   # only while proxied
+
+
+ACCESS = ('--set', 'cloudflare.access.enabled=true', '--set', 'cloudflare.access.teamDomain=team.cloudflareaccess.com',
+          '--set', 'cloudflare.access.audiences[0]=aud')
+
+
+def test_public_paths_are_served_only_through_cloudflare():
+    """The public Grafana's human check is a Cloudflare rule: straight to the server's address it would be skipped.
+    Judged on the PROXY protocol's address (remoteIpBlocks), like the forged-header rule, never the load balancer."""
+    docs = render('--set', 'cloudflare.proxied=true', '--set-json', 'cloudflare.public=["/grafana"]')
+    policy = of(docs, 'AuthorizationPolicy', 'cloudflare-public')['spec']
+    assert policy['action'] == 'DENY'
+    rule = policy['rules'][0]
+    assert rule['from'] == [{'source': {'notRemoteIpBlocks': VALUES['cloudflare']['ipRanges']}}]
+    assert rule['to'] == [{'operation': {'paths': ['/grafana', '/grafana/*']}}]
+    assert rule['when'][0]['key'] == 'connection.sni'   # off the TLS (TCP) hosts
+    assert VALUES['cloudflare']['public'] == []   # Terraform opens it (var.grafana_public)
+    assert not [d for d in render('--set', 'cloudflare.proxied=true') if d['metadata']['name'] == 'cloudflare-public']
+
+
+def test_public_paths_need_cloudflare_in_front():
+    with pytest.raises(subprocess.CalledProcessError) as failed:
+        render('--set-json', 'cloudflare.public=["/grafana"]')
+    assert 'cloudflare.public needs cloudflare.proxied' in failed.value.stderr
+
+
+def test_a_public_path_leaves_cloudflare_access():
+    paths = lambda docs: of(docs, 'AuthorizationPolicy', 'cloudflare-access')['spec']['rules'][0]['to'][0]['operation']['paths']
+    private = paths(render('--set', 'cloudflare.proxied=true', *ACCESS))
+    public = paths(render('--set', 'cloudflare.proxied=true', *ACCESS, '--set-json', 'cloudflare.public=["/grafana"]'))
+    assert {'/grafana', '/grafana/*'} <= set(private)
+    assert set(private) - set(public) == {'/grafana', '/grafana/*'}

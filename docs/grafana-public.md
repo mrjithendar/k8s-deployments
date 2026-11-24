@@ -90,6 +90,18 @@ In [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring): a dashbo
 public, one under `dashboards/private/` is not. Its checks refuse a public dashboard that reads Jaeger or links to a
 private one. Merging deploys (its `deploy.yml`).
 
+## Linking to it (articles, posts)
+
+Link to the landing page, https://jithendar.com/grafana/d/live-infrastructure, or to a dashboard's
+`/grafana/d/<uid>`. The uids are stable on purpose (monitoring's README). Two limits:
+
+- **Link previews and search engines see Cloudflare's check, not the dashboard.** LinkedIn's, X's and Google's
+  crawlers cannot pass a Managed Challenge. To let verified bots through, add `and not cf.client.bot` (the "Known
+  bots" field) to the rule's expression. Check it is offered on the zone's plan before relying on it.
+- **Even then a preview shows little.** Grafana renders its page in the browser and serves no per-dashboard title,
+  description or image to crawlers, so the preview is a generic "Grafana". For posts, link an article on
+  jithendar.com that shows a screenshot and links the live dashboard.
+
 ## Turning it off
 
 1. Comment out `grafana_public` in `vars/mk4.tfvars` and apply. Grafana needs a login again, and `/grafana` returns to

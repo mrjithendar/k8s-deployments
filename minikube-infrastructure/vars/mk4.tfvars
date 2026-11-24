@@ -28,7 +28,7 @@ cloudflare_proxied = true
 # there: the Cloudflare WAF rule exists, and the Grafana org "Public" exists (put the orgId it returned here). Grafana
 # does not start if the org is missing. /grafana then leaves the Access list above.
 grafana_public = {
-  org_id = 1
+  org_id = 2
 }
 
 # Applications on the shared cluster (postgres.tf). Each gets database + owner role <key> and Secret

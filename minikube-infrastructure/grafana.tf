@@ -1,23 +1,30 @@
 # Grafana at https://jithendar.com/grafana (admin login from Secret monitoring/monitoring-auth).
 # Values: deploy/minikube/observability/grafana/values.yaml.
+#
+# Dashboards come from mrjithendar/monitoring: its deploy workflow applies one ConfigMap per dashboard to namespace
+# grafana-dashboards, as ServiceAccount github-dashboards-deployer (below), and Grafana's dashboard sidecar loads them.
+# dashboards/public/ goes to the org "Public" while var.grafana_public is set, dashboards/private/ to the main org.
 
 locals {
-  jithendar_dashboards_dir = abspath("${path.module}/${var.jithendar_com_dir}/grafana")
-  jithendar_dashboards = {
-    for name in fileset(local.jithendar_dashboards_dir, "*.json") : name => file("${local.jithendar_dashboards_dir}/${name}")
-  }
+  grafana_values               = yamldecode(file("${local.minikube}/observability/grafana/values.yaml"))
+  grafana_main_datasources     = local.grafana_values.datasources["datasources.yaml"].datasources
+  grafana_providers            = local.grafana_values.dashboardProviders["dashboardproviders.yaml"].providers
+  grafana_dashboards_namespace = local.grafana_values.sidecar.dashboards.searchNamespace
 
   # Read-only Grafana for everyone (var.grafana_public, docs/grafana-public.md). Anonymous visitors are Viewers of the
-  # org "Public", which gets the Prometheus data source (the main org's definition, uid included, so the dashboards
-  # work unchanged) and the dashboards listed under `public` in the dashboards chart, one folder each. Loki and Jaeger
-  # stay in the main org: a Viewer can send any query to every data source of its org, not only the dashboards' own,
-  # and logs and traces carry visitor addresses.
-  grafana_values          = yamldecode(file("${local.minikube}/observability/grafana/values.yaml"))
-  grafana_public_folders  = yamldecode(file("${local.minikube}/observability/grafana/dashboards/values.yaml")).public.folders
+  # org "Public", which gets Prometheus and Loki with the main org's definitions (uids included, so the dashboards
+  # work unchanged) and the "public" dashboard provider. Jaeger stays in the main org: only the private Jithendar.com
+  # dashboards read traces, so Loki's derived fields (links into Jaeger) are dropped too. A Viewer can send any query
+  # to every data source of its org; Loki holds every namespace's logs, visitor addresses included.
   grafana_public_org_name = "Public"
-  grafana_public_datasources = [
-    for ds in local.grafana_values.datasources["datasources.yaml"].datasources : ds if ds.type == "prometheus"
-  ]
+  grafana_public_org_id   = try(var.grafana_public.org_id, 1)
+  grafana_public_datasources = concat(
+    [for ds in local.grafana_main_datasources : merge(ds, { orgId = local.grafana_public_org_id }) if ds.type == "prometheus"],
+    [for ds in local.grafana_main_datasources : merge(ds, {
+      orgId    = local.grafana_public_org_id
+      jsonData = merge(ds.jsonData, { derivedFields = [] })
+    }) if ds.type == "loki"],
+  )
   grafana_public_values = var.grafana_public == null ? [] : [yamlencode({
     "grafana.ini" = { "auth.anonymous" = {
       enabled      = true
@@ -25,54 +32,96 @@ locals {
       org_role     = "Viewer"
       hide_version = true
     } }
-    # File names differ from the main org's and from each other: the chart puts both kinds in one ConfigMap.
-    datasources = { "datasources-public.yaml" = {
-      apiVersion  = 1
-      datasources = [for ds in local.grafana_public_datasources : merge(ds, { orgId = var.grafana_public.org_id })]
-    } }
-    dashboardProviders = { "dashboardproviders-public.yaml" = {
+    # Its own file name: the chart keeps data source and provider files in one ConfigMap, keyed by name.
+    datasources = { "datasources-public.yaml" = { apiVersion = 1, datasources = local.grafana_public_datasources } }
+    # The same providers, "public" moved to the org "Public" (a list: Helm replaces it whole).
+    dashboardProviders = { "dashboardproviders.yaml" = {
       apiVersion = 1
-      providers = [for key, folder in local.grafana_public_folders : {
-        name                  = "public-${key}"
-        orgId                 = var.grafana_public.org_id
-        folder                = folder.title
-        type                  = "file"
-        disableDeletion       = true
-        editable              = false
-        allowUiUpdates        = false
-        updateIntervalSeconds = 30
-        options               = { path = "/var/lib/grafana/dashboards/public-${key}" }
-      }]
+      providers  = [for p in local.grafana_providers : merge(p, { orgId = p.name == "public" ? local.grafana_public_org_id : p.orgId })]
     } }
-    # ConfigMaps from the grafana-dashboards release (public.enabled below).
-    dashboardsConfigMaps = { for key, _ in local.grafana_public_folders : "public-${key}" => "grafana-dashboards-public-${key}" }
   })]
 }
 
-# ConfigMaps grafana-dashboards-{roboshop,moks,platform} (deploy/minikube/observability/grafana/dashboards) and
-# grafana-dashboards-jithendar (the jithendar.com checkout's grafana/ folder). Grafana mounts all four. While
-# var.grafana_public is set, also grafana-dashboards-public-<folder> for the org "Public".
-resource "helm_release" "grafana_dashboards" {
-  name      = "grafana-dashboards"
-  namespace = "monitoring"
-  chart     = "${local.minikube}/observability/grafana/dashboards"
-  values = [yamlencode({
-    jithendar = local.jithendar_dashboards
-    public    = { enabled = var.grafana_public != null }
-  }), local.chart_checksum["observability/grafana/dashboards"]]
-
-  take_ownership = true
-  wait           = true
-  timeout        = var.helm_timeout
-
-  lifecycle {
-    precondition {
-      condition     = length(local.jithendar_dashboards) > 0
-      error_message = "No dashboards in ${local.jithendar_dashboards_dir}: clone jithendar.com there or set jithendar_com_dir."
+# Nothing runs here: only the dashboards' ConfigMaps.
+resource "kubernetes_namespace_v1" "grafana_dashboards" {
+  metadata {
+    name = local.grafana_dashboards_namespace
+    labels = {
+      "app.kubernetes.io/part-of"          = "monitoring"
+      "pod-security.kubernetes.io/enforce" = "restricted"
     }
   }
+}
 
-  depends_on = [helm_release.prometheus]
+# Grafana's sidecar reads the ConfigMaps here, and nothing else in the cluster (the chart's own RBAC is off:
+# grafana/values.yaml, rbac.create).
+resource "kubernetes_role_v1" "grafana_dashboards_reader" {
+  metadata {
+    name      = "grafana-sidecar"
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
+  rule {
+    api_groups = [""]
+    resources  = ["configmaps"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "grafana_dashboards_reader" {
+  metadata {
+    name      = "grafana-sidecar"
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.grafana_dashboards_reader.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "grafana" # fullnameOverride in grafana/values.yaml
+    namespace = "monitoring"
+  }
+}
+
+# Identity of mrjithendar/monitoring's deploy workflow: ConfigMaps in this namespace, nothing else. Its token Secret
+# is not Terraform's (it would sit in the state): monitoring's scripts/setup-ci-access.sh creates it and stores the
+# token in that repository's environment "mk4".
+resource "kubernetes_service_account_v1" "dashboards_deployer" {
+  metadata {
+    name      = "github-dashboards-deployer"
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
+  automount_service_account_token = false
+}
+
+resource "kubernetes_role_v1" "dashboards_deployer" {
+  metadata {
+    name      = "github-dashboards-deployer"
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
+  rule {
+    api_groups = [""]
+    resources  = ["configmaps"]
+    verbs      = ["get", "list", "create", "patch", "update", "delete"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "dashboards_deployer" {
+  metadata {
+    name      = "github-dashboards-deployer"
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.dashboards_deployer.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.dashboards_deployer.metadata[0].name
+    namespace = kubernetes_namespace_v1.grafana_dashboards.metadata[0].name
+  }
 }
 
 resource "helm_release" "grafana" {
@@ -96,10 +145,10 @@ resource "helm_release" "grafana" {
       error_message = "grafana_public needs cloudflare_proxied = true: the human check in front of the public Grafana is a Cloudflare rule."
     }
     precondition {
-      condition     = length(local.grafana_public_datasources) == 1
-      error_message = "The org \"Public\" gets the one Prometheus data source of grafana/values.yaml; found ${length(local.grafana_public_datasources)}."
+      condition     = toset([for p in local.grafana_providers : p.name]) == toset(["public", "private"])
+      error_message = "grafana/values.yaml needs the dashboard providers \"public\" and \"private\" (mrjithendar/monitoring's two orgs)."
     }
   }
 
-  depends_on = [helm_release.grafana_dashboards]
+  depends_on = [helm_release.prometheus, kubernetes_role_binding_v1.grafana_dashboards_reader]
 }

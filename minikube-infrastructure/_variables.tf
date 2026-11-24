@@ -6,7 +6,7 @@ locals {
   # version and values, so without it a template edit under an unchanged Chart.yaml version plans "No changes"
   # (the /prometheus and /loki VirtualServices never reached mk4, 2026-11-09). The charts ignore the value.
   local_charts = [
-    "cert-manager/issuers", "embeddings/bge-m3", "gatekeeper/constraints", "gatekeeper/library", "harbor/access", "istio/edge", "istio/mesh", "observability/grafana/dashboards", "observability/jaeger",
+    "cert-manager/issuers", "embeddings/bge-m3", "gatekeeper/constraints", "gatekeeper/library", "harbor/access", "istio/edge", "istio/mesh", "observability/jaeger",
     "observability/loki", "observability/otel-collector", "observability/prometheus", "postgres/access",
     "redis/access", "storage/local-path-provisioner",
   ]
@@ -33,12 +33,6 @@ variable "helm_timeout" {
   description = "Seconds Helm waits for each release to become ready."
   type        = number
   default     = 600
-}
-
-variable "jithendar_com_dir" {
-  description = "Checkout of the jithendar.com repository; its grafana/ folder holds the Jithendar.com dashboards."
-  type        = string
-  default     = "../../jithendar.com"
 }
 
 
@@ -163,7 +157,7 @@ variable "cloudflare_access" {
 }
 
 variable "grafana_public" {
-  description = "Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Anonymous visitors become Viewers of the Grafana org \"Public\": the Prometheus data source only, and the dashboards listed under `public` in the dashboards chart's values.yaml. The gateway serves /grafana only to Cloudflare, whose WAF rule asks each visitor to prove they are human, and /grafana leaves Cloudflare Access. null = Grafana needs a login, as before. Requires cloudflare_proxied. Create the org in Grafana first: provisioning into an org that does not exist stops Grafana from starting."
+  description = "Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Anonymous visitors become Viewers of the Grafana org \"Public\": Prometheus and Loki (not Jaeger), and the dashboards in mrjithendar/monitoring's dashboards/public/. The gateway serves /grafana only to Cloudflare, whose WAF rule asks each visitor to prove they are human, and /grafana leaves Cloudflare Access. null = Grafana needs a login, as before. Requires cloudflare_proxied. Create the org in Grafana first: provisioning into an org that does not exist stops Grafana from starting."
   type = object({
     org_id = number # the orgId Grafana returned when the org "Public" was created (never 1, the main org)
   })

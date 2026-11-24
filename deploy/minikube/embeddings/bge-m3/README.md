@@ -41,7 +41,7 @@ curl -s localhost:11434/api/embed -d '{"model":"bge-m3:567m","input":["hello"]}'
 ## Monitoring
 
 Grafana → Platform → **Embeddings (bge-m3)** (`https://jithendar.com/grafana/d/platform-embeddings`, JSON in
-`deploy/minikube/observability/grafana/dashboards/platform-embeddings.json`). Ollama exports no metrics of its own,
+mrjithendar/monitoring, `dashboards/public/Platform/platform-embeddings.json`). Ollama exports no metrics of its own,
 so:
 
 - **Traffic** (requests, codes, latency per caller) comes from bge-m3's own Istio sidecar (`istio_requests_total`,

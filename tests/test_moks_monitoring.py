@@ -1,5 +1,5 @@
 """MOKS in Prometheus and Grafana: the pod-discovery scrape job (which process each series came from), alerts that fire once
-rather than once per pod, and the MOKS dashboards (copies of moks-sre's deploy/grafana/dashboards, built there)."""
+rather than once per pod. The MOKS dashboards are in mrjithendar/monitoring."""
 from pathlib import Path
 import json
 import re
@@ -9,11 +9,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-DASHBOARDS = ROOT / 'deploy/minikube/observability/grafana/dashboards'
 ALERTS = yaml.safe_load((ROOT / 'deploy/minikube/observability/prometheus/files/alerts.yml').read_text())
-BOARDS = sorted(p.name for p in DASHBOARDS.glob('moks-*.json'))
-
-
 def moks_job():
     out = subprocess.check_output(['helm', 'template', 'prometheus', str(ROOT / 'deploy/minikube/observability/prometheus'),
                                    '-n', 'monitoring', '-s', 'templates/config.yaml'], text=True)
@@ -61,17 +57,3 @@ def test_worker_only_gauges_alert_once_not_once_per_pod():
     assert {'MoksMLModelInvalid', 'MoksMLChampionNeedsReview', 'MoksMLContextUnreadable'} <= set(rules)
 
 
-@pytest.mark.parametrize('name', BOARDS)
-def test_moks_dashboards_read_the_moks_job(name):
-    board = json.loads((DASHBOARDS / name).read_text())
-    assert board['uid'] == name[:-5] and 'moks' in board['tags'] and board['title'].startswith('MOKS · ')
-    exprs = [t['expr'] for p in board['panels'] for t in p.get('targets', []) if t['datasource']['type'] == 'prometheus']
-    # Every query names its job: never another cluster's remote-written series.
-    assert exprs and all('job="moks"' in e or 'job="otel-collector"' in e or e.startswith('count(ALERTS{') for e in exprs), name
-    ids = [p['id'] for p in board['panels']]
-    assert len(ids) == len(set(ids))
-
-
-def test_the_moks_folder_has_the_six_dashboards():
-    assert BOARDS == ['moks-crewai.json', 'moks-knowledge.json', 'moks-llm.json', 'moks-ml.json', 'moks-overview.json', 'moks-platform.json']
-    assert '"moks-*.json"' in (DASHBOARDS / 'templates/grafana-dashboards-moks-configmap.yaml').read_text()

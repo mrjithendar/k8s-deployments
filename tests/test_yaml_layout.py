@@ -34,7 +34,7 @@ def test_each_active_yaml_is_one_document():
 
 
 def test_each_local_chart_template_renders_at_most_one_resource():
-    charts=('prometheus','loki','jaeger','otel-collector','grafana/dashboards')
+    charts=('prometheus','loki','jaeger','otel-collector')
     # The edge chart refuses to render without its logins: give it placeholders.
     logins=[l['name'] for l in yaml.safe_load((ROOT/'deploy/minikube/istio/edge/values.yaml').read_text())['basicAuth']]
     users=['--set-json','basicAuthUsers='+json.dumps({n:'user:{SHA}'+'A'*27+'=' for n in logins}),]

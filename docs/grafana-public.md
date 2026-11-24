@@ -10,17 +10,18 @@ and read dashboards without a login, after Cloudflare's "verify you are human" c
 |---|---|---|
 | Human check | Cloudflare dashboard: a WAF custom rule (not in Terraform) | Managed Challenge on every `/grafana` request. A visitor who passes gets a `cf_clearance` cookie, valid for the zone's Challenge Passage time. |
 | Cloudflare only | `deploy/minikube/istio/edge`, values `cloudflare.public`, AuthorizationPolicy `istio-ingress/cloudflare-public` | The gateway refuses `/grafana` (403) unless the connection comes from Cloudflare's ranges. Without this, anyone could skip the check by connecting to the server's address directly. `/grafana` also leaves the Cloudflare Access check (`cloudflare.access.prefixes`). |
-| Anonymous org | `minikube-infrastructure/grafana.tf`, `deploy/minikube/observability/grafana/dashboards/values.yaml` (`public`) | Anonymous visitors are Viewers of the Grafana org `Public`. It has the Prometheus data source only, and 17 dashboards in the folders Jithendar.com, MOKS, Platform and RoboShop: the ones whose every query goes to Prometheus. Loki and Jaeger stay in the main org. |
+| Anonymous org | `minikube-infrastructure/grafana.tf`; dashboards from [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring) `dashboards/public/` | Anonymous visitors are Viewers of the Grafana org `Public`: Prometheus and Loki, the landing page `live-infrastructure` and the Platform and MOKS folders. Jaeger and the Jithendar.com dashboards (monitoring's `dashboards/private/`) stay in the main org. |
 
 ### What anonymous visitors can do
 
 - **Can:** open the public dashboards, change their time range and variables. Through Grafana's API they can also run
-  **any PromQL query against Prometheus**, not only the dashboards' own queries: Grafana OSS has no per-dashboard query
-  limit. On 2026-11-24 Prometheus held infrastructure data only: pod and replica addresses inside the cluster, node and
-  service names, page route templates. It held no visitor addresses, emails or user IDs. A future metric that adds a
-  label like that becomes public too.
-- **Cannot:** see Loki logs or Jaeger traces (they carry visitor addresses), see the main org's dashboards, edit
-  anything, use Explore (Viewers do not get it), or sign up.
+  **any query against Prometheus and Loki**, not only the dashboards' own: Grafana OSS has no per-dashboard query
+  limit. Prometheus held infrastructure data only on 2026-11-24 (pod and replica addresses inside the cluster, node and
+  service names, page route templates). **Loki holds every namespace's logs, jithendar.com's included, with visitor
+  addresses**: keeping the Jithendar.com dashboards private hides those dashboards, not those logs (the owner's
+  choice, 2026-11-24).
+- **Cannot:** see Jaeger traces, see the main org's dashboards (Jithendar.com), edit anything, use Explore (Viewers do
+  not get it), or sign up.
 - **Unchanged:** the admin login at `/grafana/login` is reachable by anyone, as it is today: password only, with
   Grafana's lockout after repeated failures. MOKS reads Grafana inside the cluster (`grafana.monitoring.svc`), never
   through Cloudflare, so the check does not affect it.
@@ -85,9 +86,21 @@ leave `jithendar.com/grafana` out of its destinations while `grafana_public` is 
 
 ## Changing what is public
 
-Edit `public.folders` in `deploy/minikube/observability/grafana/dashboards/values.yaml`. Add only dashboards whose
-every query goes to Prometheus; `tests/test_grafana_public.py` refuses the others. A new dashboard stays private until
-it is listed there. Links from a public dashboard to a private one open "Dashboard not found" for anonymous visitors.
+In [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring): a dashboard under `dashboards/public/` is
+public, one under `dashboards/private/` is not. Its checks refuse a public dashboard that reads Jaeger or links to a
+private one. Merging deploys (its `deploy.yml`).
+
+## Linking to it (articles, posts)
+
+Link to the landing page, https://jithendar.com/grafana/d/live-infrastructure, or to a dashboard's
+`/grafana/d/<uid>`. The uids are stable on purpose (monitoring's README). Two limits:
+
+- **Link previews and search engines see Cloudflare's check, not the dashboard.** LinkedIn's, X's and Google's
+  crawlers cannot pass a Managed Challenge. To let verified bots through, add `and not cf.client.bot` (the "Known
+  bots" field) to the rule's expression. Check it is offered on the zone's plan before relying on it.
+- **Even then a preview shows little.** Grafana renders its page in the browser and serves no per-dashboard title,
+  description or image to crawlers, so the preview is a generic "Grafana". For posts, link an article on
+  jithendar.com that shows a screenshot and links the live dashboard.
 
 ## Turning it off
 

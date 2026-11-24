@@ -70,7 +70,7 @@ run "pinned_releases" {
   assert {
     condition = alltrue([for r in [
       helm_release.metrics_server, helm_release.cert_manager, helm_release.prometheus, helm_release.grafana,
-      helm_release.grafana_dashboards, helm_release.loki, helm_release.otel_collector, helm_release.jaeger,
+      helm_release.loki, helm_release.otel_collector, helm_release.jaeger,
     ] : r.take_ownership])
     error_message = "These objects were applied by Argo CD without a Helm release; the first apply must adopt them."
   }
@@ -79,16 +79,6 @@ run "pinned_releases" {
     condition     = random_password.kiali_signing_key.length == 32 && !random_password.kiali_signing_key.special
     error_message = "Kiali signing keys must be 16, 24 or 32 characters."
   }
-}
-
-run "missing_jithendar_dashboards_fail" {
-  command = plan
-
-  variables {
-    jithendar_com_dir = "no-such-checkout"
-  }
-
-  expect_failures = [helm_release.grafana_dashboards]
 }
 
 run "postgres_releases" {
@@ -469,7 +459,36 @@ run "github_runners_bad_config_url_fails" {
   expect_failures = [var.github_runners_config_url]
 }
 
-# Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Off: login only, nothing public on the gateway.
+# Dashboards from mrjithendar/monitoring: ConfigMaps in grafana-dashboards, which its deploy workflow may write and
+# Grafana's sidecar may read; nobody gets more.
+run "grafana_dashboards_namespace" {
+  command = plan
+
+  assert {
+    condition = (
+      kubernetes_namespace_v1.grafana_dashboards.metadata[0].name == "grafana-dashboards" &&
+      toset(kubernetes_role_v1.grafana_dashboards_reader.rule[0].resources) == toset(["configmaps"]) &&
+      toset(kubernetes_role_v1.grafana_dashboards_reader.rule[0].verbs) == toset(["get", "list", "watch"]) &&
+      kubernetes_role_binding_v1.grafana_dashboards_reader.subject[0].name == "grafana" &&
+      kubernetes_role_binding_v1.grafana_dashboards_reader.subject[0].namespace == "monitoring"
+    )
+    error_message = "Grafana's sidecar reads ConfigMaps in grafana-dashboards only."
+  }
+
+  assert {
+    condition = (
+      length(kubernetes_role_v1.dashboards_deployer.rule) == 1 &&
+      toset(kubernetes_role_v1.dashboards_deployer.rule[0].api_groups) == toset([""]) &&
+      toset(kubernetes_role_v1.dashboards_deployer.rule[0].resources) == toset(["configmaps"]) &&
+      !kubernetes_service_account_v1.dashboards_deployer.automount_service_account_token &&
+      kubernetes_role_binding_v1.dashboards_deployer.metadata[0].namespace == "grafana-dashboards"
+    )
+    error_message = "monitoring's deploy workflow manages ConfigMaps in grafana-dashboards, nothing else."
+  }
+}
+
+# Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Off: login only, every dashboard in the main
+# org, nothing public on the gateway.
 run "grafana_private_by_default" {
   command = plan
 
@@ -480,10 +499,9 @@ run "grafana_private_by_default" {
   assert {
     condition = (
       length(helm_release.grafana.values) == 1 &&
-      !yamldecode(helm_release.grafana_dashboards.values[0]).public.enabled &&
       length(yamldecode(helm_release.istio_edge.values[1]).cloudflare.public) == 0
     )
-    error_message = "Without grafana_public Grafana keeps its login, no public dashboards are rendered and the gateway has no public path."
+    error_message = "Without grafana_public Grafana keeps its login and the gateway has no public path."
   }
 }
 
@@ -505,30 +523,25 @@ run "grafana_public" {
   }
 
   assert {
-    # Only Prometheus: Loki and Jaeger carry visitor addresses, and a Viewer can query every data source of its org.
+    # Prometheus and Loki, no Jaeger: only the private dashboards read traces. Loki without links into Jaeger.
     condition = (
-      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources-public.yaml"].datasources : "${ds.type}/${ds.uid}/${ds.orgId}"] == ["prometheus/roboshop-prometheus/2"] &&
-      alltrue([for p in yamldecode(helm_release.grafana.values[1]).dashboardProviders["dashboardproviders-public.yaml"].providers : p.orgId == 2 && !p.editable]) &&
-      length(yamldecode(helm_release.grafana.values[1]).dashboardProviders["dashboardproviders-public.yaml"].providers) == length(yamldecode(helm_release.grafana.values[1]).dashboardsConfigMaps)
+      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources-public.yaml"].datasources : "${ds.type}/${ds.uid}/${ds.orgId}"] == ["prometheus/roboshop-prometheus/2", "loki/roboshop-loki/2"] &&
+      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources-public.yaml"].datasources : ds if ds.type == "loki"][0].jsonData.derivedFields == []
     )
-    error_message = "The org \"Public\" gets the Prometheus data source only, and read-only dashboard folders from their own ConfigMaps."
-  }
-
-  assert {
-    # The chart puts data sources and dashboard providers in one ConfigMap, keyed by file name: a shared name drops one.
-    condition = length(setintersection(
-      concat(keys(yamldecode(helm_release.grafana.values[1]).datasources), ["datasources.yaml", "dashboardproviders.yaml"]),
-      keys(yamldecode(helm_release.grafana.values[1]).dashboardProviders),
-    )) == 0 && !contains(keys(yamldecode(helm_release.grafana.values[1]).datasources), "datasources.yaml")
-    error_message = "The public data source and dashboard provider files need names of their own."
+    error_message = "The org \"Public\" gets Prometheus and Loki (without Jaeger links), nothing else."
   }
 
   assert {
     condition = (
-      yamldecode(helm_release.grafana_dashboards.values[0]).public.enabled &&
-      yamldecode(helm_release.istio_edge.values[1]).cloudflare.public == ["/grafana"]
+      { for p in yamldecode(helm_release.grafana.values[1]).dashboardProviders["dashboardproviders.yaml"].providers : p.name => p.orgId } == { public = 2, private = 1 } &&
+      !contains(keys(yamldecode(helm_release.grafana.values[1]).datasources), "datasources.yaml")
     )
-    error_message = "The public dashboards are rendered, and the gateway serves /grafana only through Cloudflare."
+    error_message = "Dashboards from public/ go to the org \"Public\", private/ stay in the main org; the main org's data sources are untouched."
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.istio_edge.values[1]).cloudflare.public == ["/grafana"]
+    error_message = "The gateway serves /grafana only through Cloudflare."
   }
 }
 

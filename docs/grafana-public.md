@@ -10,6 +10,7 @@ and read dashboards without a login, after Cloudflare's "verify you are human" c
 |---|---|---|
 | Human check | Cloudflare dashboard: a WAF custom rule (not in Terraform) | Managed Challenge on every `/grafana` request. A visitor who passes gets a `cf_clearance` cookie, valid for the zone's Challenge Passage time. |
 | Cloudflare only | `deploy/minikube/istio/edge`, values `cloudflare.public`, AuthorizationPolicy `istio-ingress/cloudflare-public` | The gateway refuses `/grafana` (403) unless the connection comes from Cloudflare's ranges. Without this, anyone could skip the check by connecting to the server's address directly. `/grafana` also leaves the Cloudflare Access check (`cloudflare.access.prefixes`). |
+| Reload on expiry | `deploy/minikube/observability/grafana/cloudflare-challenge-reload.lua`, EnvoyFilter `monitoring/grafana-cloudflare-challenge-reload` (Grafana's sidecar) | When a visitor's `cf_clearance` runs out, Cloudflare answers Grafana's API calls with its challenge (403, `cf-mitigated: challenge`), which a fetch cannot solve. A script added to Grafana's page reloads it then: the visitor passes the check again and lands on the same URL (time range and variables kept). At most one automatic reload a minute per tab. |
 | Anonymous org | `minikube-infrastructure/grafana.tf`; dashboards from [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring) `dashboards/public/` | Anonymous visitors are Viewers of the Grafana org `Public`: Prometheus and Loki, the landing page `live-infrastructure` and the Platform and MOKS folders. Jaeger and the Jithendar.com dashboards (monitoring's `dashboards/private/`) stay in the main org. |
 
 ### What anonymous visitors can do
@@ -26,8 +27,10 @@ and read dashboards without a login, after Cloudflare's "verify you are human" c
   Grafana's lockout after repeated failures. MOKS reads Grafana inside the cluster (`grafana.monitoring.svc`), never
   through Cloudflare, so the check does not affect it.
 - **Limits of the check:** it stops bots, not people. Someone who passes once can script queries with their cookie
-  until Challenge Passage runs out. When a viewer's clearance runs out, the dashboards' background refreshes fail
-  (Cloudflare challenges cannot be solved inside an API call) until the page is reloaded.
+  until Challenge Passage runs out. When a viewer's clearance runs out, the page reloads itself (Reload on expiry
+  above), so the viewer sees the check again: the longer Challenge Passage, the rarer that is. Where the browser
+  blocks sessionStorage, the script does not reload (it could not tell a loop), and panels show 403 until the
+  visitor reloads.
 
 Caching: Grafana answers `Cache-Control: no-store`, and Cloudflare passes it through (`cf-cache-status: BYPASS` on
 `/grafana/`, `/grafana/login` and `/grafana/api/*`, checked 2026-11-24). No cache rule is needed. A signed-in page

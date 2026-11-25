@@ -39,7 +39,43 @@ locals {
       apiVersion = 1
       providers  = [for p in local.grafana_providers : merge(p, { orgId = p.name == "public" ? local.grafana_public_org_id : p.orgId })]
     } }
+    # When a visitor's pass through Cloudflare's check runs out, Grafana's API calls get the challenge (403) instead
+    # of data. A Lua filter in Grafana's own sidecar adds a script to Grafana's page that reloads it then, so the
+    # visitor passes the check again and keeps the URL (time range, variables): cloudflare-challenge-reload.lua.
+    extraObjects = [{
+      apiVersion = "networking.istio.io/v1alpha3"
+      kind       = "EnvoyFilter"
+      metadata   = { name = "grafana-cloudflare-challenge-reload" }
+      spec = {
+        workloadSelector = { labels = { "app.kubernetes.io/name" = "grafana", "app.kubernetes.io/instance" = "grafana" } }
+        configPatches = [{
+          applyTo = "HTTP_FILTER"
+          match = {
+            context = "SIDECAR_INBOUND"
+            listener = {
+              portNumber = local.grafana_port
+              filterChain = { filter = {
+                name      = "envoy.filters.network.http_connection_manager"
+                subFilter = { name = "envoy.filters.http.router" }
+              } }
+            }
+          }
+          patch = {
+            operation = "INSERT_BEFORE"
+            value = {
+              name = "grafana.cloudflare-challenge-reload"
+              typed_config = {
+                "@type"             = "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
+                default_source_code = { inline_string = file("${local.minikube}/observability/grafana/cloudflare-challenge-reload.lua") }
+              }
+            }
+          }
+        }]
+      }
+    }]
   })]
+  # Grafana's container port (the chart's default; the Service's targetPort "grafana").
+  grafana_port = 3000
 }
 
 # Nothing runs here: only the dashboards' ConfigMaps.

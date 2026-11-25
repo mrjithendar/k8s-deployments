@@ -543,6 +543,18 @@ run "grafana_public" {
     condition     = yamldecode(helm_release.istio_edge.values[1]).cloudflare.public == ["/grafana"]
     error_message = "The gateway serves /grafana only through Cloudflare."
   }
+
+  assert {
+    # Grafana's sidecar (inbound, Grafana's port) adds the reload script to Grafana's page.
+    condition = (
+      [for o in yamldecode(helm_release.grafana.values[1]).extraObjects : "${o.kind}/${o.metadata.name}"] == ["EnvoyFilter/grafana-cloudflare-challenge-reload"] &&
+      yamldecode(helm_release.grafana.values[1]).extraObjects[0].spec.workloadSelector.labels == { "app.kubernetes.io/name" = "grafana", "app.kubernetes.io/instance" = "grafana" } &&
+      yamldecode(helm_release.grafana.values[1]).extraObjects[0].spec.configPatches[0].match.context == "SIDECAR_INBOUND" &&
+      yamldecode(helm_release.grafana.values[1]).extraObjects[0].spec.configPatches[0].match.listener.portNumber == 3000 &&
+      strcontains(yamldecode(helm_release.grafana.values[1]).extraObjects[0].spec.configPatches[0].patch.value.typed_config.default_source_code.inline_string, "cf-mitigated")
+    )
+    error_message = "While Grafana is public, its sidecar reloads the page when Cloudflare's check runs out (cloudflare-challenge-reload.lua)."
+  }
 }
 
 run "grafana_public_needs_cloudflare" {

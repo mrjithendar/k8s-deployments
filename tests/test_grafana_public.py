@@ -49,3 +49,18 @@ def test_home_is_monitoring_s_landing_page():
     folder = GRAFANA['sidecar']['dashboards']['folder']
     path = GRAFANA['grafana.ini']['dashboards']['default_home_dashboard_path']
     assert path == f'{folder}/public/live-infrastructure.json'
+
+
+def test_the_challenge_reload_filter_survives_the_chart_and_guards_its_reload():
+    """cloudflare-challenge-reload.lua: Grafana's chart passes extraObjects through tpl, so no template braces; the
+    page script reloads only on Cloudflare's challenge, at most once a minute, and only with sessionStorage."""
+    lua = (ROOT / 'deploy/minikube/observability/grafana/cloudflare-challenge-reload.lua').read_text()
+    assert '{{' not in lua
+    assert 'response.status === 403 && response.headers.get("cf-mitigated") === "challenge"' in lua
+    assert 'Date.now() - last < 60000' in lua
+    assert '} catch (e) {\n      return;\n    }\n    window.location.reload();' in lua
+    # Only uncompressed pages are changed; compressed ones and everything else pass through.
+    assert 'headers:get("content-encoding") ~= nil then\n    return' in lua
+    assert 'headers:remove("accept-encoding")' in lua
+    terraform = (ROOT / 'minikube-infrastructure/grafana.tf').read_text()
+    assert 'file("${local.minikube}/observability/grafana/cloudflare-challenge-reload.lua")' in terraform

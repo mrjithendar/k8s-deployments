@@ -2,6 +2,7 @@
 closed, client addresses, response headers, mTLS, who may call whom."""
 import json
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -59,6 +60,15 @@ def test_logins_are_required_to_render():
     with pytest.raises(subprocess.CalledProcessError) as failure:
         render(users={})
     assert 'gateway-basic-auth.py' in failure.value.stderr
+
+
+def test_the_terraform_test_mock_has_every_login():
+    # istio.tf refuses to plan without a line per login, so terraform test (mock providers) fails the same way when
+    # its mocked gateway-basic-auth Secret misses one (#40 added "docling" to values.yaml but not to the mock).
+    mock = (ROOT / 'minikube-infrastructure/tests/releases.tftest.hcl').read_text()
+    block = mock.split('target = data.kubernetes_secret_v1.gateway_basic_auth', 1)[1]
+    block = re.split(r'\n(?:mock_provider|run |\s*override_data)', block, maxsplit=1)[0]
+    assert set(re.findall(r'"([a-z0-9-]+)"\s*=\s*"[^"\n]*\{SHA\}', block)) == set(LOGINS)
 
 
 def test_logins_run_on_https_only_and_skip_paths_outside_their_prefix():

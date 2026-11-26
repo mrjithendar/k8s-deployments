@@ -11,6 +11,7 @@ mock_provider "kubernetes" {
         "loki-push"               = "a:{SHA}AAAAAAAAAAAAAAAAAAAAAAAAAAA="
         "loki-read"               = "a:{SHA}AAAAAAAAAAAAAAAAAAAAAAAAAAA="
         "redis"                   = "a:{SHA}AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        "docling"                 = "a:{SHA}AAAAAAAAAAAAAAAAAAAAAAAAAAA="
       }
     }
   }

@@ -54,6 +54,8 @@ root:
     - {name: prometheus, prefix: /prometheus, to: monitoring/prometheus}
     - {name: loki, prefix: /loki, to: monitoring/loki}
     - {name: moks, prefix: /moks, to: moks-sre/moks}
+    - {name: rag, prefix: /rag, to: rag/rag-api}
+    - {name: chat, prefix: /chat, to: rag/open-webui}
     - {name: roboshop, prefix: /roboshop, to: roboshop-ai/roboshop}
     - {name: postgres, prefix: /postgres, to: postgres-db/postgres-ui}
     - {name: redis, prefix: /redis, to: redis/redis-ui}

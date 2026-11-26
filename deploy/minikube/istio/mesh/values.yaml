@@ -29,8 +29,9 @@ authorization:
     argocd: [istio-ingress, monitoring]
     cert-manager: [monitoring]
     harbor: [istio-ingress, monitoring]
-    # istio-system: Kiali. moks-sre: its connectors query Prometheus and Loki.
-    monitoring: [istio-ingress, istio-system, moks-sre]
+    # istio-system: Kiali. moks-sre: its connectors query Prometheus and Loki. keda: the operator's Prometheus scaler
+    # (deploy/minikube/keda).
+    monitoring: [istio-ingress, istio-system, keda, moks-sre]
     # OTLP traces from the applications (roboshop-ai through its ExternalName Service otel-collector); Grafana and
     # Prometheus from monitoring.
     observability: [monitoring, jithendar, moks-sre, roboshop-ai]

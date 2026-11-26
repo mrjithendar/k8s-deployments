@@ -2,7 +2,7 @@
 
 Everything for the self-hosted Minikube cluster `mk4`: creating the cluster, Traefik and Argo CD, the Terraform-managed
 add-ons (cert-manager, Let's Encrypt, Istio, Kiali, Prometheus, Grafana, Loki, OpenTelemetry Collector, Jaeger, OPA Gatekeeper, the GitHub
-Actions runners for the mrjithendar organization), the mk4 Argo CD catalog (AppProject `mk-platform`, opt-in Harbor), and their workflows, scripts and tests.
+Actions runners for the mrjithendar organization, KEDA), the mk4 Argo CD catalog (AppProject `mk-platform`, opt-in Harbor), and their workflows, scripts and tests.
 
 Moved here from [moks-tech/tools](https://github.com/moks-tech/tools) on 2026-11-08 with the same paths, so
 `deploy/minikube/...`, `minikube-infrastructure/...` and `scripts/argocd/...` mean what they meant there. tools keeps
@@ -49,7 +49,7 @@ Less common operations in `deploy/minikube/`:
 
 | Path | Contents |
 |---|---|
-| `deploy/minikube/` | Cluster scripts and per-component config: [argocd](deploy/minikube/argocd/README.md), [cert-manager](deploy/minikube/cert-manager/README.md), [traefik](deploy/minikube/traefik/README.md), [vault](deploy/minikube/vault/README.md), [jfrog](deploy/minikube/jfrog/README.md), [harbor](deploy/minikube/harbor/README.md), [metrics-server](deploy/minikube/metrics-server/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [ecr-refresh](deploy/minikube/ecr-refresh/README.md), [runners](deploy/minikube/runners/README.md) (GitHub Actions runners, `runs-on: mk4`), `namespaces/`, the [Argo CD catalog](deploy/minikube/applications/README.md) and [observability](deploy/minikube/observability/README.md). [Commands](deploy/minikube/README.md). |
+| `deploy/minikube/` | Cluster scripts and per-component config: [argocd](deploy/minikube/argocd/README.md), [cert-manager](deploy/minikube/cert-manager/README.md), [traefik](deploy/minikube/traefik/README.md), [vault](deploy/minikube/vault/README.md), [jfrog](deploy/minikube/jfrog/README.md), [harbor](deploy/minikube/harbor/README.md), [metrics-server](deploy/minikube/metrics-server/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [ecr-refresh](deploy/minikube/ecr-refresh/README.md), [runners](deploy/minikube/runners/README.md) (GitHub Actions runners, `runs-on: mk4`), [keda](deploy/minikube/keda/README.md) (event-driven autoscaling), `namespaces/`, the [Argo CD catalog](deploy/minikube/applications/README.md) and [observability](deploy/minikube/observability/README.md). [Commands](deploy/minikube/README.md). |
 | `minikube-infrastructure/` | Terraform root for Traefik and the add-ons, one `helm_release` per file ([details](minikube-infrastructure/README.md)). |
 | `scripts/argocd/` | `bootstrap.py`, `deploy.py`, and `validate.py` (renders the whole catalog and checks ownership). |
 | `scripts/setup/` | `create_secrets.py` and [SECRETS.md](scripts/setup/SECRETS.md). |

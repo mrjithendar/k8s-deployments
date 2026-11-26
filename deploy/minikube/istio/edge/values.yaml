@@ -58,6 +58,8 @@ root:
     - {name: chat, prefix: /chat, to: rag/open-webui}
     # Qdrant's Web UI (/qdrant/dashboard) and the REST API it calls, behind Qdrant's API key (moks-rag deploy/k8s).
     - {name: qdrant, prefix: /qdrant, to: rag/qdrant}
+    # docling-serve's Web UI (/docling/ui/) and the API it calls. docling-serve has no login here: basicAuth "docling".
+    - {name: docling, prefix: /docling, to: rag/docling-serve}
     - {name: roboshop, prefix: /roboshop, to: roboshop-ai/roboshop}
     - {name: postgres, prefix: /postgres, to: postgres-db/postgres-ui}
     - {name: redis, prefix: /redis, to: redis/redis-ui}
@@ -79,6 +81,8 @@ basicAuth:
   - {name: loki-read, prefix: /loki, except: /loki/api/v1/push, from: monitoring/loki-read-auth}
   # RedisInsight has no login of its own (it is preconfigured with the console user): IP allowlist plus this.
   - {name: redis, prefix: /redis, from: redis/redis-ui-auth}
+  # docling-serve has no API key in mk4 (rag-api calls it in-cluster), so the gateway guards /docling (moks-rag README).
+  - {name: docling, prefix: /docling, from: rag/docling-ui-auth}
 # Set by Terraform from that Secret: {<name>: "<user>:{SHA}<base64 sha1>"}. Rendering fails if one is missing.
 basicAuthUsers: {}
 
@@ -177,6 +181,7 @@ cloudflare:
       - /postgres
       - /redis
       - /qdrant
+      - /docling
       - /ui
       - /v1
     except:

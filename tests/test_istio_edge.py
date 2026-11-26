@@ -39,13 +39,13 @@ def test_only_the_owning_namespace_binds_a_hostname():
     gateway = of(render(), 'Gateway', 'public')['spec']
     hosts = [h for s in gateway['servers'] for h in s['hosts']]
     assert all('/' in h and not h.startswith('*/') for h in hosts)
-    https, db, postgres, redis, http = gateway['servers']
-    for tcp in (db, postgres, redis):
+    # HTTPS first, one TLS (TCP) server per gateway.tls entry in its order, plain HTTP last.
+    https, *tcp_servers, http = gateway['servers']
+    assert [s['hosts'] for s in tcp_servers] == [[t['host']] for t in VALUES['gateway']['tls']]
+    for tcp in tcp_servers:
         assert tcp['tls']['credentialName'] == https['tls']['credentialName'] == VALUES['gateway']['certificate']['secretName']
         assert tcp['port']['protocol'] == 'TLS'
-    assert db['hosts'] == ['jithendar/db.jithendar.com']
-    assert postgres['hosts'] == ['postgres-db/postgres.jithendar.com']
-    assert redis['hosts'] == ['redis/redis.jithendar.com']
+    assert {h for s in tcp_servers for h in s['hosts']} >= {'postgres-db/postgres.jithendar.com', 'redis/redis.jithendar.com'}
     assert http['tls'] == {'httpsRedirect': True}   # plain HTTP never reaches a login
 
 
@@ -77,9 +77,14 @@ def test_logins_run_on_https_only_and_skip_paths_outside_their_prefix():
 
 
 def test_read_only_rules_never_touch_the_tcp_hosts():
-    rules = of(render(), 'AuthorizationPolicy', 'read-only')['spec']['rules']
-    assert rules and all(r['when'] == [{'key': 'connection.sni', 'notValues': ['db.jithendar.com', 'postgres.jithendar.com', 'redis.jithendar.com']}] for r in rules)
+    # values.yaml lists no read-only prefix since MOKS's OpenSearch was retired, so give the template one.
+    read_only = [{'prefix': '/search', 'except': '/search-ui', 'postSuffixes': ['/_search']}]
+    rules = of(render('--set-json', 'readOnly=' + json.dumps(read_only)), 'AuthorizationPolicy', 'read-only')['spec']['rules']
+    snis = [t['host'].split('/', 1)[1] for t in VALUES['gateway']['tls']]
+    assert rules and all(r['when'] == [{'key': 'connection.sni', 'notValues': snis}] for r in rules)
     assert all(r['to'][0]['operation']['ports'] == ['443'] for r in rules)
+    # And with values.yaml as it is, there is no policy at all.
+    assert not [d for d in render() if d['kind'] == 'AuthorizationPolicy' and d['metadata']['name'] == 'read-only']
 
 
 def test_clients_cannot_choose_their_address():

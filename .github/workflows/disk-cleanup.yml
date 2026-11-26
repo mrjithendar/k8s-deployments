@@ -9,12 +9,12 @@ name: Disk cleanup
 #   mk4      MK4_API_SERVER, MK4_CA_DATA (variables) and MK4_TERRAFORM_TOKEN (environment secret), the Terraform
 #            workflow's ServiceAccount (scripts/setup-minikube-terraform-ci.sh); kubeconfig .github/mk4-terraform-kubeconfig.yaml.
 #   nodes    MK4_NODE_SSH_KEY (environment secret): the private key the nodes accept for root (~/.ssh/hetzner_k3s):
-#              gh secret set MK4_NODE_SSH_KEY --env mk4 --repo moks-tech/kubernetes < ~/.ssh/hetzner_k3s
+#              gh secret set MK4_NODE_SSH_KEY --env mk4 --repo mrjithendar/k8s-deployments < ~/.ssh/hetzner_k3s
 #            MK4_SSH_KNOWN_HOSTS (variable, optional): the nodes' known_hosts lines; without it each run trusts the host
 #            keys it first sees.
 #   Harbor   user admin, password HARBOR_PASSWORD (repository secret): admin's password was changed in the portal, so
 #            Secret harbor/harbor-credentials no longer works. Update it whenever the password changes:
-#              gh secret set HARBOR_PASSWORD --repo moks-tech/kubernetes
+#              gh secret set HARBOR_PASSWORD --repo mrjithendar/k8s-deployments
 #            Unset, the script falls back to the Secret.
 # This repository is public, so its logs are too: the nodes' addresses are masked before the script runs.
 on:

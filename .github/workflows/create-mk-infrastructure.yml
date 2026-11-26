@@ -12,7 +12,6 @@ name: Create minikube infrastructure
 #          filled from MK4_API_SERVER, MK4_CA_DATA (variables) and MK4_TERRAFORM_TOKEN (secret of environment mk4).
 #   state  AWS role MK4_TERRAFORM_ROLE_ARN through GitHub OIDC (tools repository: infrastructure/github-minikube-terraform.tf):
 #          the S3 state object and its lock, nothing else.
-# Runs on the mk4 runner scale set (runs-on: ubuntu-24.04-arm, deploy/minikube/runners/README.md).
 on:
   workflow_dispatch:
     inputs:
@@ -25,7 +24,6 @@ on:
     paths:
       - 'minikube-infrastructure/**'
       - 'deploy/minikube/cert-manager/**'
-      - 'deploy/minikube/embeddings/**'
       - 'deploy/minikube/metrics-server/values.yaml'
       - 'deploy/minikube/gatekeeper/**'
       - 'deploy/minikube/istio/**'
@@ -35,7 +33,10 @@ on:
       - 'deploy/minikube/argocd/**'
       - 'deploy/minikube/harbor/values.yaml'
       - 'deploy/minikube/harbor/access/**'
+      - 'deploy/minikube/keda/**'
+      - 'deploy/minikube/redis/**'
       - 'deploy/minikube/runners/**'
+      - 'scripts/lib/retry-chart-fetch.sh'
       - '.github/mk4-terraform-kubeconfig.yaml'
       - '.github/workflows/create-mk-infrastructure.yml'
 
@@ -202,10 +203,10 @@ jobs:
           set -euo pipefail
           # Only this root's releases.
           releases='^(metrics-server|cert-manager|letsencrypt-jithendar|istio-base|istio-cni|istiod|istio-ingressgateway|istio-edge|istio-mesh|kiali|prometheus|grafana|loki|otel-collector|jaeger|local-path-provisioner|cnpg|barman-cloud|postgres-cluster|postgres-access|argocd|harbor-access|harbor|gatekeeper|gatekeeper-library|gatekeeper-constraints|arc|arc-runners|keda)$'
-          { echo '### Helm releases'; echo '```'; helm list -A --kube-context mk4 --filter "$releases"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### Helm releases'; echo '```'; helm list -A --filter "$releases"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           expected=29
-          deployed=$(helm list -A --kube-context mk4 --filter "$releases" --deployed -q | wc -l)
-          [[ "$deployed" -eq "$expected" ]] || { echo "::error::$deployed of $expected releases deployed"; helm list -A --kube-context mk4 --filter "$releases"; exit 1; }
+          deployed=$(helm list -A --filter "$releases" --deployed -q | wc -l)
+          [[ "$deployed" -eq "$expected" ]] || { echo "::error::$deployed of $expected releases deployed"; helm list -A --filter "$releases"; exit 1; }
           # A freshly started pod (Kiali warms its caches) and a new route answer 503 for a while: retry for 3 min.
           # Behind Cloudflare Access these answer 302 (to the Access login) or 403: the route is still up. The public
           # Grafana (grafana_public, docs/grafana-public.md) answers 403 too: Cloudflare's human check, which curl cannot pass.

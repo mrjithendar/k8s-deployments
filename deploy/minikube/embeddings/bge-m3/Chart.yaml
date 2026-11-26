@@ -1,5 +1,0 @@
-apiVersion: v2
-name: bge-m3
-version: 0.1.0
-type: application
-description: BAAI bge-m3 text embeddings (1024 dimensions) served by Ollama on CPU, for seo-agent and moks

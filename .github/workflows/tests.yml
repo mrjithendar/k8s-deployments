@@ -1,0 +1,44 @@
+name: Tests
+
+# The repository's pytest suite (tests/ and deploy/minikube/test-*.py): the charts render as the cluster expects, the
+# alerts and their runbooks, the Argo CD catalog, the install scripts, and these workflows themselves. No cluster or
+# AWS access. Every pull request, whatever it touches: the suite reads files from all over the repository.
+#
+# Needs helm and jq (preinstalled on GitHub's Ubuntu images) and a checkout of mrjithendar/roboshop-ai-app (public),
+# which the Argo CD catalog and tracing tests read (scripts/lib/repos.py, ROBOSHOP_AI_DIR).
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mrjithendar/roboshop-ai-app
+          path: .ci/roboshop-ai
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - run: python -m pip install --quiet pytest==9.2.0 pyyaml==6.0.3
+
+      - name: pytest
+        env:
+          ROBOSHOP_AI_DIR: ${{ github.workspace }}/.ci/roboshop-ai
+        run: python -m pytest -q -p no:cacheprovider -rs tests deploy/minikube

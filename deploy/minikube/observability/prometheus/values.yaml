@@ -45,6 +45,21 @@ extraScrapeConfigs:
     relabel_configs:
       - target_label: service
         replacement: seo-agent
+  # Shared Hybrid RAG API (mrjithendar/moks-rag, namespace rag): retrieval and ingest latency by stage, zero-hit
+  # searches, LLM tokens by service/model/purpose, upstream errors, which index version each collection serves.
+  # /metrics on rag-api's own port 9464 (never routed by the edge) through the headless Service rag-api-metrics:
+  # declaring :9464 there is what makes this Prometheus's sidecar send mTLS (namespace rag is STRICT), and rag's
+  # AuthorizationPolicy rag-api-callers admits namespace monitoring on 9464 (GET) only. Metric names: moks-rag
+  # README "Observability".
+  - job_name: rag-api
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["rag-api-metrics.rag.svc.cluster.local"]
+        type: A
+        port: 9464
+    relabel_configs:
+      - target_label: service
+        replacement: rag-api
   # MOKS (namespace moks-sre, mrjithendar/moks-sre): every MOKS process (app=moks: api, worker, crewai, executor,
   # terminal) and the reranker and embedder, found by pod (pod list/watch, istioMetrics) so each series says which one:
   # instance and pod are the pod name, component is the process (the MOKS dashboards' Component variable). Prometheus

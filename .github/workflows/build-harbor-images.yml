@@ -1,9 +1,9 @@
 name: Build Harbor images
 
 # Builds Harbor's arm64 images and pushes them to Docker Hub (deploy/minikube/harbor/deploy-harbor.sh --skip-deploy).
-# They cannot be built on the mk4 server: builds there froze the cluster twice (tools repository: runner/README.md). GitHub's hosted
-# arm64 runner is native arm64 and free for a public repository (miniKube is private: see README.md). Manual only, so pull requests never see the
-# Docker Hub token. Deploy afterwards on the mk4 host with: bash deploy/minikube/harbor/deploy-harbor.sh --skip-build
+# They are not built on the cluster: builds on its nodes froze it twice (tools repository: runner/README.md). GitHub's
+# hosted arm64 runner is native arm64 and free for this public repository. Manual only, so pull requests never see
+# the Docker Hub token. Deploy afterwards on the mk4 host with: bash deploy/minikube/harbor/deploy-harbor.sh --skip-build
 #
 # Repository secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (an access token with write access to jithendar/custom-harbour).
 on:

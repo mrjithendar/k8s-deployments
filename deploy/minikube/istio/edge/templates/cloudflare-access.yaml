@@ -27,28 +27,4 @@ spec:
       fromHeaders:
         - name: cf-access-jwt-assertion
       forwardOriginalToken: true
----
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: cloudflare-access
-  namespace: {{ $.Release.Namespace | quote }}
-spec:
-  selector:
-    matchLabels: {{ toYaml $.Values.selector | nindent 6 }}
-  action: DENY
-  rules:
-    - from:
-        - source:
-            notRequestPrincipals: [{{ printf "https://%s/*" $team | quote }}]
-      to:
-        - operation:
-            paths: {{ toJson $paths }}
-            {{- with $except }}
-            notPaths: {{ toJson . }}
-            {{- end }}
-      when:
-        # Keeps this HTTP rule off the TLS (TCP) hosts (see templates/_helpers.tpl).
-        - key: connection.sni
-          notValues: {{ include "edge.tlsSnis" $ }}
 {{- end }}{{ end }}

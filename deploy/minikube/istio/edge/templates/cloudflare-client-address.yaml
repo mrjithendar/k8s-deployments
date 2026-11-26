@@ -1,12 +1,12 @@
 {{- if .Values.cloudflare.proxied }}
 # Cloudflare in front (values cloudflare.proxied): the PROXY protocol's address is then a Cloudflare edge, and the
-# visitor's own address is in CF-Connecting-IP. Two parts:
+# visitor's own address is in CF-Connecting-IP. Two parts (one resource per file):
 #
-# 1. A request carrying CF-Connecting-IP from anywhere but Cloudflare's ranges is refused (403). The rule reads
+# 1. (templates/cloudflare-forged-header.yaml) A request carrying CF-Connecting-IP from anywhere but Cloudflare's ranges is refused (403). The rule reads
 #    remoteIpBlocks: the address the PROXY protocol carries (the gateway trusts no X-Forwarded-For hop), which no header
 #    can change. Not ipBlocks: that is the physical peer, always the load balancer here, so it refused every request
 #    Cloudflare sent (2026-11-20, every page "RBAC: access denied"). So past this rule the header is always Cloudflare's.
-# 2. A Lua filter sets X-Forwarded-For and X-Real-IP (what the applications read: rate limits, Turnstile, logs) to
+# 2. (this file) A Lua filter sets X-Forwarded-For and X-Real-IP (what the applications read: rate limits, Turnstile, logs) to
 #    CF-Connecting-IP when present, else to the connection's address. It replaces templates/forwarded-for.yaml, whose
 #    route-level header would run after it and put Cloudflare's address back.
 #
@@ -14,25 +14,6 @@
 # switched off while proxied (Terraform) and Cloudflare Access protects those paths instead. The TLS (TCP) hosts are not
 # proxied and keep their allowlists: the SNI condition keeps rule 1 off them (Istio drops a DENY rule's HTTP fields on
 # TCP, which would otherwise refuse every non-Cloudflare connection to PostgreSQL and Redis).
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: cloudflare-forged-header
-  namespace: {{ .Release.Namespace | quote }}
-spec:
-  selector:
-    matchLabels: {{ toYaml .Values.selector | nindent 6 }}
-  action: DENY
-  rules:
-    - from:
-        - source:
-            notRemoteIpBlocks: {{ toYaml .Values.cloudflare.ipRanges | nindent 14 }}
-      when:
-        - key: request.headers[cf-connecting-ip]
-          values: ["*"]
-        - key: connection.sni
-          notValues: {{ include "edge.tlsSnis" . }}
----
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:

@@ -1,7 +1,9 @@
 name: Check minikube infrastructure
 
-# Runs on the mk4 runners with no cluster or AWS access: this repository is public, so pull request code
-# never gets the mk4 token or the state role (both live in the "mk4" environment, master only).
+# Pull requests touching what minikube-infrastructure/ applies (the same paths as create-mk-infrastructure.yml):
+# format, validate, terraform test with mock providers, and the local charts render. No cluster or AWS access: this
+# repository is public, so pull request code never gets the mk4 token or the state role (both live in the "mk4"
+# environment, master only). The rest of the repository's tests are in tests.yml.
 on:
   workflow_dispatch:
   pull_request:
@@ -17,12 +19,20 @@ on:
       - 'deploy/minikube/argocd/**'
       - 'deploy/minikube/harbor/values.yaml'
       - 'deploy/minikube/harbor/access/**'
+      - 'deploy/minikube/keda/**'
+      - 'deploy/minikube/redis/**'
       - 'deploy/minikube/runners/**'
+      - 'scripts/lib/retry-chart-fetch.sh'
       - '.github/mk4-terraform-kubeconfig.yaml'
       - '.github/workflows/*-mk-infrastructure.yml'
 
 permissions:
   contents: read
+
+# A new push to a pull request cancels the check of the commit it replaces.
+concurrency:
+  group: check-mk-infrastructure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   terraform:

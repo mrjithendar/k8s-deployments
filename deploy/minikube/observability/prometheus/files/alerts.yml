@@ -221,64 +221,65 @@ groups:
         annotations:
           summary: 'Valkey evicted {{ $value | humanize }} TTL keys in 15 min (memory pressure)'
           runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/minikube-infrastructure/README.md#redis-valkey'
-  # bge-m3 embeddings (deploy/minikube/embeddings/bge-m3) for seo-agent and moks. Ollama exports no metrics: requests
+  # bge-m3 embeddings in namespace rag (deployed by mrjithendar/moks-rag; runbook docs/bge-m3-monitoring.md) for the RAG
+  # API, seo-agent and moks. Ollama exports no metrics: requests
   # come from bge-m3's own sidecar (reporter="destination", which outlives caller restarts) plus the callers' sidecars
   # for requests that never reached the pod (flags UH, UF, UO, NR); the rest from cAdvisor.
   # Dashboard: Platform / Embeddings (bge-m3).
   - name: embeddings
     rules:
       - alert: BgeM3NotRunning
-        expr: absent(container_memory_working_set_bytes{job="kubernetes-cadvisor", namespace="embeddings", container="ollama"})
+        expr: absent(container_memory_working_set_bytes{job="kubernetes-cadvisor", namespace="rag", container="ollama"})
         for: 10m
         labels:
           severity: critical
         annotations:
           summary: 'The bge-m3 ollama container has not been running for 10 min; seo-agent and moks cannot embed'
-          runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/deploy/minikube/embeddings/bge-m3/README.md#monitoring'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/docs/bge-m3-monitoring.md#monitoring'
       # Resident memory under 1 GiB: the 1.16 GB of weights are not in memory, so the next request pays a cold load.
       - alert: BgeM3ModelNotLoaded
-        expr: max(container_memory_rss{job="kubernetes-cadvisor", namespace="embeddings", container="ollama"}) < 1073741824
+        expr: max(container_memory_rss{job="kubernetes-cadvisor", namespace="rag", container="ollama"}) < 1073741824
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: 'bge-m3 holds {{ $value | humanize1024 }}B resident, so the model is not loaded'
-          runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/deploy/minikube/embeddings/bge-m3/README.md#monitoring'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/docs/bge-m3-monitoring.md#monitoring'
       # At least 3 in the window, so one cancelled request does not page. A code a caller has not had before starts a
       # new series already at N, which increase() reads as 0; the `unless ... offset 15m` terms add that N.
       - alert: BgeM3RequestsFailing
         expr: |
           sum by (source_workload_namespace, source_workload, response_code) (
-              increase(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_code!~"2.."}[15m])
+              increase(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="rag", destination_service_name="bge-m3", response_code!~"2.."}[15m])
               + (
-                min_over_time(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_code!~"2.."}[15m])
-                unless istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_code!~"2.."} offset 15m
+                min_over_time(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="rag", destination_service_name="bge-m3", response_code!~"2.."}[15m])
+                unless istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="rag", destination_service_name="bge-m3", response_code!~"2.."} offset 15m
               )
             or
-              increase(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_code!~"2.."}[15m])
+              increase(istio_requests_total{job="envoy-stats", reporter="destination", destination_service_namespace="rag", destination_service_name="bge-m3", response_code!~"2.."}[15m])
             or
-              increase(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
+              increase(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="rag", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
               + (
-                min_over_time(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
-                unless istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"} offset 15m
+                min_over_time(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="rag", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
+                unless istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="rag", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"} offset 15m
               )
             or
-              increase(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="embeddings", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
+              increase(istio_requests_total{job="envoy-stats", reporter="source", destination_service_namespace="rag", destination_service_name="bge-m3", response_flags=~".*(UH|UF|UO|NR).*"}[15m])
           ) >= 3
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: '{{ $labels.source_workload_namespace }}/{{ $labels.source_workload }} got {{ $value | humanize }} answers {{ $labels.response_code }} from bge-m3 in 15 min'
-          runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/deploy/minikube/embeddings/bge-m3/README.md#monitoring'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/docs/bge-m3-monitoring.md#monitoring'
       - alert: BgeM3MemoryNearLimit
-        expr: max(container_memory_working_set_bytes{job="kubernetes-cadvisor", namespace="embeddings", container="ollama"}) / max(container_spec_memory_limit_bytes{job="kubernetes-cadvisor", namespace="embeddings", container="ollama"} > 0) > 0.9
+        expr: max(container_memory_working_set_bytes{job="kubernetes-cadvisor", namespace="rag", container="ollama"}) / max(container_spec_memory_limit_bytes{job="kubernetes-cadvisor", namespace="rag", container="ollama"} > 0) > 0.9
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: 'bge-m3 uses {{ $value | humanizePercentage }} of its memory limit and may be OOM-killed'
-          runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/deploy/minikube/embeddings/bge-m3/README.md#monitoring'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/docs/bge-m3-monitoring.md#monitoring'
   # Istio (deploy/minikube/istio): istiod's replicas and every proxy's Envoy stats. Dashboards: Platform / Istio mesh
   # and Platform / Istio control plane.
   - name: istio

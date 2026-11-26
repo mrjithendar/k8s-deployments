@@ -1,0 +1,23 @@
+{{- if .Values.cloudflare.proxied }}
+# Cloudflare in front (values cloudflare.proxied): part 1 of templates/cloudflare-client-address.yaml. A request carrying
+# CF-Connecting-IP from anywhere but Cloudflare's ranges is refused (403); see that file for why remoteIpBlocks and the
+# SNI condition.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: cloudflare-forged-header
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  selector:
+    matchLabels: {{ toYaml .Values.selector | nindent 6 }}
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRemoteIpBlocks: {{ toYaml .Values.cloudflare.ipRanges | nindent 14 }}
+      when:
+        - key: request.headers[cf-connecting-ip]
+          values: ["*"]
+        - key: connection.sni
+          notValues: {{ include "edge.tlsSnis" . }}
+{{- end }}

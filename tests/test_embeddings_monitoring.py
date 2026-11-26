@@ -9,7 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 ALERTS = yaml.safe_load((ROOT / 'deploy/minikube/observability/prometheus/files/alerts.yml').read_text())
-README = (ROOT / 'deploy/minikube/embeddings/bge-m3/README.md').read_text()
+README = (ROOT / 'docs/bge-m3-monitoring.md').read_text()
 SELECTOR = re.compile(r'(istio_\w+)\{([^}]*)\}')
 UNDELIVERED = 'response_flags=~".*(UH|UF|UO|NR).*"'
 
@@ -47,7 +47,7 @@ def test_alerts_have_runbooks_in_the_readme():
     names = [r['alert'] for r in group['rules']]
     assert names == ['BgeM3NotRunning', 'BgeM3ModelNotLoaded', 'BgeM3RequestsFailing', 'BgeM3MemoryNearLimit']
     for rule in group['rules']:
-        assert rule['annotations']['runbook_url'].endswith('deploy/minikube/embeddings/bge-m3/README.md#monitoring')
+        assert rule['annotations']['runbook_url'].endswith('docs/bge-m3-monitoring.md#monitoring')
         assert f'**{rule["alert"]}**' in README
     assert re.search(r'^## Monitoring$', README, re.M)
 

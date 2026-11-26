@@ -56,6 +56,8 @@ root:
     - {name: moks, prefix: /moks, to: moks-sre/moks}
     - {name: rag, prefix: /rag, to: rag/rag-api}
     - {name: chat, prefix: /chat, to: rag/open-webui}
+    # Qdrant's Web UI (/qdrant/dashboard) and the REST API it calls, behind Qdrant's API key (moks-rag deploy/k8s).
+    - {name: qdrant, prefix: /qdrant, to: rag/qdrant}
     - {name: roboshop, prefix: /roboshop, to: roboshop-ai/roboshop}
     - {name: postgres, prefix: /postgres, to: postgres-db/postgres-ui}
     - {name: redis, prefix: /redis, to: redis/redis-ui}
@@ -174,6 +176,7 @@ cloudflare:
       - /loki
       - /postgres
       - /redis
+      - /qdrant
       - /ui
       - /v1
     except:

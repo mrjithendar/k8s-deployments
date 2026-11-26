@@ -16,9 +16,9 @@ redis_allowed_ips = ["122.177.247.138/32"]
 cloudflare_proxied = true
 
 # Step 8, once the Zero Trust application for the admin tools exists (steps 2-5): the gateway then requires its Access
-# token on /argocd, /kiali, /grafana, /prometheus, /loki, /postgres, /redis, /ui and /v1, and the /postgres and /redis
-# IP allowlists switch off. Until then /postgres and /redis answer 403 through Cloudflare (their allowlists only ever see
-# Cloudflare's addresses); postgres.jithendar.com and redis.jithendar.com keep their own allowlists either way.
+# token on /argocd, /kiali, /grafana, /prometheus, /loki, /postgres, /redis, /qdrant, /ui and /v1, and the /postgres and
+# /redis IP allowlists switch off. Until then /postgres and /redis answer 403 through Cloudflare (their allowlists only
+# ever see Cloudflare's addresses); postgres.jithendar.com and redis.jithendar.com keep their own allowlists either way.
 # cloudflare_access = {
 #   team_domain = "<team>.cloudflareaccess.com"
 #   audiences   = ["<Application Audience (AUD) tag>"]

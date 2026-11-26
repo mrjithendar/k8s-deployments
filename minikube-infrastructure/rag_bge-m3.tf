@@ -4,21 +4,9 @@
 #
 # Not TEI: Hugging Face's text-embeddings-inference publishes CPU images for amd64 only, and mk4's nodes are arm64.
 
-# In the mesh: STRICT mTLS (istio-mesh's default PeerAuthentication) and the chart's enforced AuthorizationPolicy.
-resource "kubernetes_namespace_v1" "embeddings" {
-  metadata {
-    name = "embeddings"
-    labels = {
-      "app.kubernetes.io/part-of" = "embeddings"
-      "istio-injection"           = "enabled"
-    }
-  }
-  depends_on = [helm_release.istiod]
-}
-
 resource "helm_release" "bge_m3" {
   name      = "bge-m3"
-  namespace = kubernetes_namespace_v1.embeddings.metadata[0].name
+  namespace = kubernetes_namespace_v1.rag.metadata[0].name
   chart     = "${local.minikube}/embeddings/bge-m3"
   values    = [local.chart_checksum["embeddings/bge-m3"]]
 

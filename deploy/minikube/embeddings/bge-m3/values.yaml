@@ -33,7 +33,7 @@ resources:
 # The downloaded model. A Hetzner volume (not local-path) so the pod can start on any node without downloading again.
 storage:
   className: hcloud-volumes
-  size: 10Gi  # Hetzner's minimum; the model uses 1.2 GB
+  size: 5Gi  # Hetzner's minimum; the model uses 1.2 GB
 
 # Who may call port 11434. Each entry is let through by the NetworkPolicy (namespace, plus podLabels when given) and
 # by the AuthorizationPolicy (the mTLS identity of serviceAccount). Everything else is refused.

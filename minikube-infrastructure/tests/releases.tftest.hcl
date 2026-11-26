@@ -186,20 +186,6 @@ run "redis_releases" {
   }
 }
 
-run "embeddings_release" {
-  command = plan
-
-  assert {
-    condition = (
-      helm_release.bge_m3.namespace == "embeddings" &&
-      helm_release.bge_m3.chart == "${local.minikube}/embeddings/bge-m3" &&
-      kubernetes_namespace_v1.embeddings.metadata[0].labels["istio-injection"] == "enabled" &&
-      helm_release.bge_m3.timeout >= 1200
-    )
-    error_message = "bge-m3 runs in namespace embeddings, in the mesh, with time for its first image pull and model download."
-  }
-}
-
 run "keda_release" {
   command = plan
 

@@ -200,6 +200,46 @@ run "embeddings_release" {
   }
 }
 
+run "keda_release" {
+  command = plan
+
+  assert {
+    condition = (
+      helm_release.keda.version == "2.21.1" &&
+      helm_release.keda.repository == "https://kedacore.github.io/charts" &&
+      helm_release.keda.namespace == "keda" &&
+      kubernetes_namespace_v1.keda.metadata[0].labels["istio-injection"] == "enabled" &&
+      kubernetes_namespace_v1.keda.metadata[0].labels["pod-security.kubernetes.io/enforce"] == "baseline"
+    )
+    error_message = "KEDA is pinned and runs in namespace keda, in the mesh, Pod Security baseline."
+  }
+
+  assert {
+    condition = (
+      yamldecode(helm_release.keda.values[0]).podLabels.metricsAdapter["sidecar.istio.io/inject"] == "false" &&
+      yamldecode(helm_release.keda.values[0]).podLabels.webhooks["sidecar.istio.io/inject"] == "false" &&
+      !can(yamldecode(helm_release.keda.values[0]).podLabels.keda["sidecar.istio.io/inject"])
+    )
+    error_message = "Only the operator gets a sidecar: the API server calls the metrics API server and the webhooks directly."
+  }
+
+  assert {
+    condition = (
+      yamldecode(helm_release.keda.values[0]).extraObjects[0].kind == "PeerAuthentication" &&
+      yamldecode(helm_release.keda.values[0]).extraObjects[0].spec.selector.matchLabels.app == "keda-operator" &&
+      yamldecode(helm_release.keda.values[0]).extraObjects[0].spec.mtls.mode == "STRICT" &&
+      yamldecode(helm_release.keda.values[0]).extraObjects[0].spec.portLevelMtls["9666"].mode == "PERMISSIVE" &&
+      length(yamldecode(helm_release.keda.values[0]).extraObjects[0].spec.portLevelMtls) == 1
+    )
+    error_message = "The operator stays STRICT except its gRPC port 9666, which the unmeshed metrics API server calls."
+  }
+
+  assert {
+    condition     = contains(yamldecode(file("${local.minikube}/istio/mesh/values.yaml")).authorization.namespaces.monitoring, "keda")
+    error_message = "KEDA's operator is an allowed caller of monitoring (its Prometheus scaler)."
+  }
+}
+
 run "redis_without_allowlist_fails" {
   command = plan
 

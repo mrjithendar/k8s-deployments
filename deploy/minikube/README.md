@@ -11,6 +11,7 @@ The self-hosted cluster: Argo CD hub, and the Terraform-managed Traefik and add-
 | `traefik/` | Traefik values ([README](traefik/README.md)) | Terraform, `minikube-infrastructure/traefik.tf` |
 | `argocd/` | Argo CD values (also its /argocd VirtualService) | Terraform: `minikube-infrastructure/argocd.tf` |
 | `runners/` | GitHub Actions runners for the organization mrjithendar: ARC controller and scale set `mk4` values ([README](runners/README.md)) | Terraform: `minikube-infrastructure/runners.tf` |
+| `keda/` | KEDA values: event-driven autoscaling (ScaledObjects, ScaledJobs) ([README](keda/README.md)) | Terraform: `minikube-infrastructure/keda.tf` |
 | `namespaces/` | Namespace manifests | `./bootstrap-cluster.sh` |
 | `vault/`, `jfrog/`, `ecr-refresh/` | Optional components | Their own scripts and READMEs |
 | `harbor/` | Opt-in private registry ([README](harbor/README.md)) | Argo CD, `applications/optional/harbor.yaml`, by name only |

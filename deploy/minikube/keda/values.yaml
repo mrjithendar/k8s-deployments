@@ -1,0 +1,35 @@
+# Installed by minikube-infrastructure/keda.tf (release keda, namespace keda), chart kedacore keda 2.21.1 (KEDA v2.21.1).
+# Only what mk4 needs differently from the chart; everything else (CRDs, one replica each, resources, a non-root
+# read-only container) is the chart's default (README.md in this folder).
+
+# Namespace keda is in the mesh (istio-injection=enabled, keda.tf), so the operator gets a sidecar: its scalers call
+# meshed Services such as Prometheus (monitoring), which refuse plain text (STRICT mTLS, istio/mesh). The metrics API
+# server and the admission webhooks get none: the API server calls them directly (APIService
+# v1beta1.external.metrics.k8s.io for every HPA KEDA creates, and the ValidatingWebhookConfiguration), and a proxy that
+# is not ready yet would fail those calls. Same split as cert-manager (cert-manager/values.yaml).
+podLabels:
+  metricsAdapter:
+    sidecar.istio.io/inject: "false"
+  webhooks:
+    sidecar.istio.io/inject: "false"
+
+extraObjects:
+  # The metrics API server reads each scaler's metric from the operator over gRPC with KEDA's own TLS on port 9666
+  # (--metrics-service-address). Without a sidecar it cannot do mTLS, so that port is PERMISSIVE; the rest of the
+  # operator stays STRICT.
+  - apiVersion: security.istio.io/v1
+    kind: PeerAuthentication
+    metadata:
+      name: keda-operator
+      namespace: keda
+      labels:
+        app.kubernetes.io/part-of: keda
+    spec:
+      selector:
+        matchLabels:
+          app: keda-operator
+      mtls:
+        mode: STRICT
+      portLevelMtls:
+        9666:
+          mode: PERMISSIVE

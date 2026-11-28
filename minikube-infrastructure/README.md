@@ -48,6 +48,7 @@ All through the Istio gateway on `jithendar.com` (routing table and logins: `dep
 | https://jithendar.com/prometheus/ | basic auth on the gateway, same Secret (`scripts/istio/gateway-basic-auth.py`) |
 | https://jithendar.com/kiali/ | ServiceAccount token, view only (below) |
 | https://jithendar.com/docling/ | basic auth on the gateway, Secret `rag/docling-ui-auth` (moks-rag README, Browsing docling-serve) |
+| https://jithendar.com/llm/ui/ | LiteLLM's own sign-in, `LITELLM_UI_USERNAME`/`LITELLM_UI_PASSWORD` in Secret `rag/rag-secrets`; its API (`/llm/v1/...`) takes LiteLLM keys (moks-rag README, LiteLLM Admin UI) |
 | https://jithendar.com/loki/api/v1/{query_range,labels,label/…,format_query} | basic auth, Secret `monitoring/loki-read-auth` |
 | https://jithendar.com/loki/api/v1/push | basic auth, Secret `monitoring/loki-push-auth` |
 
@@ -80,8 +81,9 @@ time (below).
   vector search. Removing a name leaves the extension installed.
 
 Removing an entry drops the role's Secrets and login; the database stays (`databaseReclaimPolicy: retain`) until
-dropped by hand. Listed today: `jithendar`, `moks`, `registry` (Harbor), `shipping` (RoboShop). Their databases are
-empty until each application moves.
+dropped by hand. Listed today: `jithendar`, `moks`, `registry` (Harbor), `shipping` (RoboShop), `litellm` (moks-rag's
+LiteLLM, namespace `rag`). The first four stay empty until each application moves; `litellm` is used from the start
+(LiteLLM creates its tables itself, as the owner of its database).
 
 | From | Address |
 |---|---|

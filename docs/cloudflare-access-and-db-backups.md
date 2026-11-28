@@ -59,7 +59,7 @@ Order matters: each step keeps the site working.
    Settings → Authentication add a login method (One-time PIN by email works with no setup; Google if preferred).
 3. Access → Applications → **Add an application → Self-hosted**, name `jithendar.com admin tools`. Destinations (one
    per path): `jithendar.com/argocd`, `/kiali`, `/grafana`, `/prometheus`, `/loki`, `/postgres`,
-   `/redis`, `/qdrant`, `/ui`, `/v1`. Leave `/grafana` out while `grafana_public` is set in `vars/mk4.tfvars`: Grafana
+   `/redis`, `/qdrant`, `/docling`, `/llm`, `/ui`, `/v1`. Leave `/grafana` out while `grafana_public` is set in `vars/mk4.tfvars`: Grafana
    is then public behind Cloudflare's human check instead ([grafana-public.md](grafana-public.md)). Policies:
    - *Owner*: Allow, Include → Emails → your address.
    - *CI*: **Service Auth**, Include → Service Token → the token from step 5.

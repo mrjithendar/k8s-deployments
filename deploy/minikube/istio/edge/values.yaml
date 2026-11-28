@@ -60,6 +60,9 @@ root:
     - {name: qdrant, prefix: /qdrant, to: rag/qdrant}
     # docling-serve's Web UI (/docling/ui/) and the API it calls. docling-serve has no login here: basicAuth "docling".
     - {name: docling, prefix: /docling, to: rag/docling-serve}
+    # LiteLLM's Admin UI (/llm/ui/), Swagger and OpenAI-compatible API, behind LiteLLM's own keys and sign-in. The
+    # delegate matches only /llm and /llm/..., so /llms.txt falls through to the site (moks-rag deploy/k8s).
+    - {name: llm, prefix: /llm, to: rag/litellm}
     - {name: roboshop, prefix: /roboshop, to: roboshop-ai/roboshop}
     - {name: postgres, prefix: /postgres, to: postgres-db/postgres-ui}
     - {name: redis, prefix: /redis, to: redis/redis-ui}
@@ -182,6 +185,9 @@ cloudflare:
       - /redis
       - /qdrant
       - /docling
+      # LiteLLM: the Admin UI and the public API. In-cluster callers (rag-api, moks-cms) use litellm.rag:4000 and
+      # never pass here; a caller from outside then needs an Access service token.
+      - /llm
       - /ui
       - /v1
     except:

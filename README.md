@@ -2,7 +2,7 @@
 
 Everything for the self-hosted Minikube cluster `mk4`: creating the cluster, Traefik and Argo CD, the Terraform-managed
 add-ons (cert-manager, Let's Encrypt, Istio, Kiali, Prometheus, Grafana, Loki, OpenTelemetry Collector, Jaeger, OPA Gatekeeper, the GitHub
-Actions runners for the mrjithendar organization, KEDA), the mk4 Argo CD catalog (AppProject `mk-platform`, opt-in Harbor), and their workflows, scripts and tests.
+Actions runners for the mrjithendar organization, KEDA), the mk4 Argo CD catalog (AppProject `mk-platform`), and their workflows, scripts and tests.
 
 Moved here from [moks-tech/tools](https://github.com/moks-tech/tools) on 2026-11-08 with the same paths, so
 `deploy/minikube/...`, `minikube-infrastructure/...` and `scripts/argocd/...` mean what they meant there. tools keeps
@@ -27,8 +27,7 @@ Every entry point can run from any directory, and most accept `--help`.
 | `./bootstrap-cluster.sh` | Install Argo CD and its ingress (after Terraform has installed Traefik); refresh ECR pull secrets. `--schedule-pull-secrets` adds a six-hourly refresh CronJob ([details](deploy/minikube/ecr-refresh/README.md)). |
 | `./create-secrets.sh [--apply] [--all]` | Create missing installation credentials. Never rotates existing ones. |
 | `./deploy-argocd.sh [app\|all\|roboshop\|list\|status]` | Register and sync Argo CD Applications. |
-| `./harbor-pull-secret.sh [context]` | Create or rotate Secret `harbor-pull` (registry.jithendar.com) in every active namespace. |
-| `./disk-cleanup.sh [--apply] [--keep N] [--only pods,nodes,harbor]` | Free disk on mk4: finished pods; unused images, journald and apt's cache on every node over SSH; every untagged Harbor artifact and all but the newest 2 tagged of each repository (never `latest` or a pinned digest), then Harbor GC. Shows each node's disk and the Harbor volume before and after, with a summary table. A dry run unless `--apply`. Runs with `--apply` every day at 06:00 IST from `.github/workflows/disk-cleanup.yml`, which can also be started by hand. |
+| `./disk-cleanup.sh [--apply] [--only pods,nodes]` | Free disk on mk4: finished pods; unused images, journald and apt's cache on every node over SSH. Shows each node's disk before and after, with a summary table. A dry run unless `--apply`. Runs with `--apply` every day at 06:00 IST from `.github/workflows/disk-cleanup.yml`, which can also be started by hand. |
 | `scripts/setup-minikube-terraform-ci.sh` | One-time access for the Terraform workflow ([minikube-infrastructure/README.md](minikube-infrastructure/README.md#ci)). |
 | `scripts/data/seed-minikube-demo.py` | Opt-in synthetic demo data. |
 | `scripts/reset-mongo-password.sh` | Reset the RoboShop MongoDB password on mk4. |
@@ -42,19 +41,18 @@ Less common operations in `deploy/minikube/`:
 | `expose-ingress.sh` | Forward host ports 80/443 to the Minikube ingress. |
 | `host-limits.sh` | Raise Linux inotify limits (run automatically by `install.sh`). |
 | `deploy-vault.sh` | Install persistent Vault with Helm ([details](deploy/minikube/vault/README.md)). |
-| `harbor/deploy-harbor.sh` | Build Harbor's arm64 images and deploy Harbor ([details](deploy/minikube/harbor/README.md)). |
 | `reset.sh` | **Destructive**: delete the Minikube clusters and installer state. Asks for confirmation. |
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `deploy/minikube/` | Cluster scripts and per-component config: [argocd](deploy/minikube/argocd/README.md), [cert-manager](deploy/minikube/cert-manager/README.md), [traefik](deploy/minikube/traefik/README.md), [vault](deploy/minikube/vault/README.md), [jfrog](deploy/minikube/jfrog/README.md), [harbor](deploy/minikube/harbor/README.md), [metrics-server](deploy/minikube/metrics-server/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [ecr-refresh](deploy/minikube/ecr-refresh/README.md), [runners](deploy/minikube/runners/README.md) (GitHub Actions runners, `runs-on: mk4`), [keda](deploy/minikube/keda/README.md) (event-driven autoscaling), `namespaces/`, the [Argo CD catalog](deploy/minikube/applications/README.md) and [observability](deploy/minikube/observability/README.md). [Commands](deploy/minikube/README.md). |
+| `deploy/minikube/` | Cluster scripts and per-component config: [argocd](deploy/minikube/argocd/README.md), [cert-manager](deploy/minikube/cert-manager/README.md), [traefik](deploy/minikube/traefik/README.md), [vault](deploy/minikube/vault/README.md), [jfrog](deploy/minikube/jfrog/README.md), [metrics-server](deploy/minikube/metrics-server/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [gatekeeper](deploy/minikube/gatekeeper/README.md), [ecr-refresh](deploy/minikube/ecr-refresh/README.md), [runners](deploy/minikube/runners/README.md) (GitHub Actions runners, `runs-on: mk4`), [keda](deploy/minikube/keda/README.md) (event-driven autoscaling), `namespaces/`, the [Argo CD catalog](deploy/minikube/applications/README.md) and [observability](deploy/minikube/observability/README.md). [Commands](deploy/minikube/README.md). |
 | `minikube-infrastructure/` | Terraform root for Traefik and the add-ons, one `helm_release` per file ([details](minikube-infrastructure/README.md)). |
 | `scripts/argocd/` | `bootstrap.py`, `deploy.py`, and `validate.py` (renders the whole catalog and checks ownership). |
 | `scripts/setup/` | `create_secrets.py` and [SECRETS.md](scripts/setup/SECRETS.md). |
 | `scripts/lib/` | Shared helpers: supported-host check, Argo CD ownership check, repository paths. |
-| `.github/workflows/` | `check-mk-infrastructure.yml` (PRs), `create-mk-infrastructure.yml` (Terraform apply on master), `build-harbor-images.yml` (manual), `disk-cleanup.yml` (daily at 06:00 IST and manual). |
+| `.github/workflows/` | `check-mk-infrastructure.yml` (PRs), `create-mk-infrastructure.yml` (Terraform apply on master), `disk-cleanup.yml` (daily at 06:00 IST and manual). |
 | `tests/`, `deploy/minikube/test-*.py` | Tests for everything above. |
 | `docs/centos7-manual-setup.md`, `dashboard-admin.yaml` | This repository's original CentOS 7 notes and dashboard ServiceAccount, kept for reference. |
 
@@ -80,17 +78,14 @@ deletes these files, then:
 1. **Argo CD access.** This repository is private, so Argo CD on mk4 needs a repository credential for
    `https://github.com/moks-tech/kubernetes.git` (a read-only fine-grained token or deploy key), e.g.
    `argocd repo add https://github.com/moks-tech/kubernetes.git --username x-access-token --password <token>`.
-2. **Re-apply the live specs** that read this repository (only Harbor and the AppProjects):
-   `./deploy-argocd.sh harbor --context mk4`, then `./deploy-argocd.sh status --context mk4`.
+2. **Re-apply the live specs** that read this repository (the AppProjects), then check:
+   `./deploy-argocd.sh status --context mk4`.
 3. **GitHub settings** (they do not move with the files): run `scripts/setup-minikube-terraform-ci.sh` to create the
-   environment `mk4` and its secret and variables here; add `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` for the Harbor
-   build; set `MINIKUBE_TERRAFORM_APPLY` only when tools had it. Then delete the same names from tools.
+   environment `mk4` and its secret and variables here; set `MINIKUBE_TERRAFORM_APPLY` only when tools had it. Then delete the same names from tools.
 4. **OIDC role.** tools' `infrastructure/github-minikube-terraform.tf` now trusts `repo:moks-tech/kubernetes:environment:mk4`;
    it applies when that tools change reaches tools `master`.
-5. **mk4 host.** Scripts run on the host (`expose-ingress.sh`, `deploy-harbor.sh --skip-build`) now come from a
+5. **mk4 host.** Scripts run on the host (`expose-ingress.sh`) now come from a
    clone of this repository, not of tools.
-6. **arm64 runner.** `build-harbor-images.yml` runs on `ubuntu-24.04-arm`, which was free because tools is public. On a
-   private repository, check that your plan offers it and what it costs before running the workflow.
 
 ## Tests
 

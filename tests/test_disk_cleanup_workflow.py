@@ -27,14 +27,7 @@ def step(text):
 def test_runs_every_day_at_six_ist_and_by_hand():
     assert set(WORKFLOW[True]) == {'schedule', 'workflow_dispatch'}
     assert start_utc().astimezone(IST).strftime('%H:%M') == '06:00'
-    assert set(WORKFLOW[True]['workflow_dispatch']['inputs']) == {'dry_run', 'only', 'keep'}
-
-
-def test_a_run_ends_before_harbors_backup_window():
-    # disk-cleanup.sh skips Harbor's GC 02:15-03:45 UTC; a scheduled run should finish before that window opens.
-    assert '10#$now >= 215 && 10#$now <= 345' in (ROOT / 'disk-cleanup.sh').read_text()
-    end = start_utc() + timedelta(minutes=JOB['timeout-minutes'])
-    assert end <= start_utc().replace(hour=2, minute=15)
+    assert set(WORKFLOW[True]['workflow_dispatch']['inputs']) == {'dry_run', 'only'}
 
 
 def test_applies_from_master_through_environment_mk4_one_run_at_a_time():
@@ -42,24 +35,16 @@ def test_applies_from_master_through_environment_mk4_one_run_at_a_time():
     assert WORKFLOW['permissions'] == {'contents': 'read'}
     assert WORKFLOW['concurrency']['cancel-in-progress'] is False
     run = JOB['steps'][step('./disk-cleanup.sh')]['run']
-    assert 'args=(--yes --only "$ONLY" --keep "$KEEP")' in run
+    assert 'args=(--yes --only "$ONLY")' in run
     assert 'if [[ "$DRY_RUN" != true ]]; then args+=(--apply); fi' in run
     # A scheduled run has no inputs: it applies everything with the script's defaults.
-    assert JOB['env'] == {'DRY_RUN': '${{ inputs.dry_run }}', 'ONLY': "${{ inputs.only || 'pods,nodes,harbor' }}",
-                          'KEEP': '${{ inputs.keep || 2 }}'}
+    assert JOB['env'] == {'DRY_RUN': '${{ inputs.dry_run }}', 'ONLY': "${{ inputs.only || 'pods,nodes' }}"}
 
 
 def test_inputs_and_secrets_reach_the_shell_only_through_env():
     for s in JOB['steps']:
         assert '${{' not in s.get('run', ''), s.get('name')
     assert not re.search(r'\$\{\{\s*secrets\.', yaml.safe_dump(JOB['env']))
-
-
-def test_harbor_login_is_admin_with_the_harbor_password_secret():
-    env = JOB['steps'][step('./disk-cleanup.sh')]['env']
-    assert env == {'HARBOR_USER': 'admin', 'HARBOR_PASSWORD': '${{ secrets.HARBOR_PASSWORD }}'}
-    script = (ROOT / 'disk-cleanup.sh').read_text()
-    assert 'user="${HARBOR_USER:-admin}" password="${HARBOR_PASSWORD:-}"' in script
 
 
 def test_node_addresses_are_masked_before_the_script_prints_them():

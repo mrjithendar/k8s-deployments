@@ -16,7 +16,7 @@ The Istio ingress gateway (`ingressgateway.yaml`, release `istio-ingressgateway`
 | Delegates for Kiali and Grafana (their charts only render Ingresses) | `edge/templates/route-*.yaml` |
 
 Each application owns a delegate VirtualService for its prefix (no hosts, no gateways): moks (`/moks`), roboshop-ai (`/roboshop`), jithendar.com (the site), Prometheus, Loki, Argo CD and
-Vault here. Its own hostname gets its own VirtualService on `istio-ingress/public`: Harbor (registry.), JFrog (jfrog.),
+Vault here. Its own hostname gets its own VirtualService on `istio-ingress/public`: JFrog (jfrog.),
 PostgreSQL (postgres., TCP), Redis (redis., TCP). One root avoids Istio's merge order for VirtualServices of one host: whichever was created first
 would win, and the site's `/` would shadow every later prefix.
 
@@ -37,7 +37,7 @@ passwords are not.
 | What | Where |
 |---|---|
 | STRICT mTLS for every namespace without its own PeerAuthentication (`istio-system/default`); jithendar, moks and roboshop-ai keep a STRICT one of their own, none has a plain-text port | `mesh/templates/peerauthentication.yaml` |
-| `allow-known-callers` in argocd, cert-manager, harbor, monitoring, observability: only the namespace itself and the listed namespaces' identities | `mesh/values.yaml` `authorization`; the applications keep theirs in their repositories |
+| `allow-known-callers` in argocd, cert-manager, monitoring, observability: only the namespace itself and the listed namespaces' identities | `mesh/values.yaml` `authorization`; the applications keep theirs in their repositories |
 | The gateway's access log, JSON with Alloy's allowed fields only (no address, path or header) | `mesh/templates/telemetry.yaml`, provider `edge-access-log` in `istiod.yaml` |
 | Two gateway replicas with a PDB, two istiod replicas (chart PDB), Kiali meshed by pod label | `ingressgateway.yaml`, `istiod.yaml`, `kiali.yaml` |
 
@@ -46,7 +46,7 @@ sidecar (no `includeOutboundIPRanges: ""`: that made scrapes plain text) except 
 which no sidecar captures ([Monitoring](#monitoring)), Kiali has a sidecar. Before adding a client
 outside the mesh, check plain text is gone:
 `sum by (destination_workload_namespace,destination_workload) (increase(istio_requests_total{reporter="destination",connection_security_policy="none"}[1h]))`
-must be empty apart from harbor-core → harbor-registry (the PERMISSIVE :5000 above); Grafana's Platform · Istio mesh
+must be empty; Grafana's Platform · Istio mesh
 plots it as **Plain-text requests by workload**. MOKS's session pods in moks-sre, unmeshed by label,
 cannot call meshed Services.
 
@@ -55,9 +55,7 @@ be. `python3 scripts/istio/authz-dry-run-report.py` prints the non-zero counts (
 them over time per pod (**AuthorizationPolicy: would deny / denied**). After a day at 0, enforce:
 `authorization.dryRun: false` here, `mesh.authorization.dryRun: false` in moks, and delete the annotation in
 jithendar.com `minikube/75-mesh.yaml` and roboshop-ai `argocd-minikube/apps/mesh/authorizationpolicy.yaml`. A new
-caller across namespaces needs its namespace added to the callee's list first. Not harbor yet: harbor-core's plain-text
-calls to the registry's :5000 carry no identity, so `allow-known-callers` counts them as denied (seen 2026-11-19), and
-enforcing it would break image pulls.
+caller across namespaces needs its namespace added to the callee's list first.
 
 ## Monitoring
 

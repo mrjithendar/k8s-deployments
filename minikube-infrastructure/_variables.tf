@@ -6,7 +6,7 @@ locals {
   # version and values, so without it a template edit under an unchanged Chart.yaml version plans "No changes"
   # (the /prometheus and /loki VirtualServices never reached mk4, 2026-11-09). The charts ignore the value.
   local_charts = [
-    "cert-manager/issuers", "gatekeeper/constraints", "gatekeeper/library", "harbor/access", "istio/edge", "istio/mesh", "observability/jaeger",
+    "cert-manager/issuers", "gatekeeper/constraints", "gatekeeper/library", "istio/edge", "istio/mesh", "observability/jaeger",
     "observability/loki", "observability/otel-collector", "observability/prometheus", "postgres/access",
     "redis/access", "storage/local-path-provisioner",
   ]
@@ -108,19 +108,6 @@ variable "redis_allowed_ips" {
     condition     = alltrue([for ip in var.redis_allowed_ips : can(cidrhost(ip, 0))])
     error_message = "Each entry must be a CIDR, e.g. 203.0.113.7/32."
   }
-}
-
-variable "dockerhub_username" {
-  description = "Docker Hub user for Harbor's private arm64 images (harbor.tf, Secret harbor/dockerhub-pull). CI: repository secret DOCKER_USERNAME; locally: export TF_VAR_dockerhub_username."
-  type        = string
-  default     = ""
-}
-
-variable "dockerhub_password" {
-  description = "Docker Hub access token (read-only is enough) for that user. CI: repository secret DOCKER_PASSWORD; locally: export TF_VAR_dockerhub_password. Never in a tfvars file."
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 variable "postgres_backups" {

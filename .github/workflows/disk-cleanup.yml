@@ -1,21 +1,16 @@
 name: Disk cleanup
 
-# Runs disk-cleanup.sh --apply against mk4 every day at 06:00 IST (00:30 UTC), and by hand from the Actions tab (dry run,
-# --only and --keep as inputs). GitHub may start a scheduled run late; Harbor's GC still waits out the 02:15-03:45 UTC
-# backup window on its own (disk-cleanup.sh). In a public repository GitHub turns schedules off after 60 days without
-# a commit; re-enable the workflow in the Actions tab if that happens.
+# Runs disk-cleanup.sh --apply against mk4 every day at 06:00 IST (00:30 UTC), and by hand from the Actions tab (dry run
+# and --only as inputs). GitHub may start a scheduled run late. In a public repository GitHub turns schedules off after
+# 60 days without a commit; re-enable the workflow in the Actions tab if that happens.
 #
-# Access, in the GitHub environment "mk4" (master only) so pull requests never see it, except Harbor's password:
+# Access, in the GitHub environment "mk4" (master only) so pull requests never see it:
 #   mk4      MK4_API_SERVER, MK4_CA_DATA (variables) and MK4_TERRAFORM_TOKEN (environment secret), the Terraform
 #            workflow's ServiceAccount (scripts/setup-minikube-terraform-ci.sh); kubeconfig .github/mk4-terraform-kubeconfig.yaml.
 #   nodes    MK4_NODE_SSH_KEY (environment secret): the private key the nodes accept for root (~/.ssh/hetzner_k3s):
 #              gh secret set MK4_NODE_SSH_KEY --env mk4 --repo mrjithendar/k8s-deployments < ~/.ssh/hetzner_k3s
 #            MK4_SSH_KNOWN_HOSTS (variable, optional): the nodes' known_hosts lines; without it each run trusts the host
 #            keys it first sees.
-#   Harbor   user admin, password HARBOR_PASSWORD (repository secret): admin's password was changed in the portal, so
-#            Secret harbor/harbor-credentials no longer works. Update it whenever the password changes:
-#              gh secret set HARBOR_PASSWORD --repo mrjithendar/k8s-deployments
-#            Unset, the script falls back to the Secret.
 # This repository is public, so its logs are too: the nodes' addresses are masked before the script runs.
 on:
   schedule:
@@ -27,18 +22,14 @@ on:
         type: boolean
         default: false
       only:
-        description: Steps (--only), comma-separated from pods, nodes, harbor
+        description: Steps (--only), comma-separated from pods, nodes
         type: string
-        default: pods,nodes,harbor
-      keep:
-        description: Tagged Harbor artifacts kept per repository (--keep)
-        type: number
-        default: 2
+        default: pods,nodes
 
 permissions:
   contents: read
 
-# Never two at once, and never cancel one: a cancelled run could stop between Harbor's deletes and its GC.
+# Never two at once, and never cancel one: a cancelled run could leave a node half cleaned.
 concurrency:
   group: disk-cleanup-mk4
   cancel-in-progress: false
@@ -54,8 +45,7 @@ jobs:
         shell: bash
     env:
       DRY_RUN: ${{ inputs.dry_run }}
-      ONLY: ${{ inputs.only || 'pods,nodes,harbor' }}
-      KEEP: ${{ inputs.keep || 2 }}
+      ONLY: ${{ inputs.only || 'pods,nodes' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -98,12 +88,9 @@ jobs:
           fi
 
       - name: disk-cleanup.sh
-        env:
-          HARBOR_USER: admin
-          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
         run: |
           set -euo pipefail
-          args=(--yes --only "$ONLY" --keep "$KEEP")
+          args=(--yes --only "$ONLY")
           if [[ "$DRY_RUN" != true ]]; then args+=(--apply); fi
           echo "disk-cleanup.sh ${args[*]}"
           ./disk-cleanup.sh "${args[@]}" < /dev/null 2>&1 | tee "$RUNNER_TEMP/disk-cleanup.log"
@@ -115,7 +102,7 @@ jobs:
           mode=apply
           if [[ "$DRY_RUN" == true ]]; then mode='dry run'; fi
           {
-            echo "### Disk cleanup on mk4 ($mode: $ONLY, keep $KEEP)"
+            echo "### Disk cleanup on mk4 ($mode: $ONLY)"
             echo '```'
             awk '/^== Summary/ {p = 1} /^== Done/ {p = 0} p' "$RUNNER_TEMP/disk-cleanup.log"
             grep -E 'problem\(s\)|^Stopped at line' "$RUNNER_TEMP/disk-cleanup.log" || true

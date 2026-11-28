@@ -31,8 +31,6 @@ on:
       - 'deploy/minikube/storage/**'
       - 'deploy/minikube/postgres/**'
       - 'deploy/minikube/argocd/**'
-      - 'deploy/minikube/harbor/values.yaml'
-      - 'deploy/minikube/harbor/access/**'
       - 'deploy/minikube/keda/**'
       - 'deploy/minikube/redis/**'
       - 'deploy/minikube/runners/**'
@@ -65,9 +63,6 @@ jobs:
       AWS_REGION: us-east-1
       TF_IN_AUTOMATION: 'true'
       TF_INPUT: 'false'
-      # Harbor's pull Secret for its private arm64 images (minikube-infrastructure/harbor.tf).
-      TF_VAR_dockerhub_username: ${{ secrets.DOCKER_USERNAME }}
-      TF_VAR_dockerhub_password: ${{ secrets.DOCKER_PASSWORD }}
       # The GitHub App the runner controller signs in as (minikube-infrastructure/runners.tf): secrets of environment
       # mk4, so only master's deploy job sees the private key (deploy/minikube/runners/README.md, "Credentials").
       TF_VAR_github_runners_app_id: ${{ secrets.RUNNERS_GITHUB_APP_ID }}
@@ -97,11 +92,11 @@ jobs:
           MK4_TERRAFORM_TOKEN: ${{ secrets.MK4_TERRAFORM_TOKEN }}
         run: |
           missing=()
-          for v in MK4_TERRAFORM_ROLE_ARN MK4_API_SERVER MK4_CA_DATA MK4_TERRAFORM_TOKEN TF_VAR_dockerhub_username TF_VAR_dockerhub_password \
+          for v in MK4_TERRAFORM_ROLE_ARN MK4_API_SERVER MK4_CA_DATA MK4_TERRAFORM_TOKEN \
                    TF_VAR_github_runners_app_id TF_VAR_github_runners_app_installation_id TF_VAR_github_runners_app_private_key; do
             [[ -n "${!v}" ]] || missing+=("$v")
           done
-          [[ ${#missing[@]} -eq 0 ]] || { echo "::error::Not set: ${missing[*]}. Run scripts/setup-minikube-terraform-ci.sh (TF_VAR_dockerhub_*: repository secrets DOCKER_USERNAME, DOCKER_PASSWORD; TF_VAR_github_runners_app_*: secrets RUNNERS_GITHUB_APP_ID, RUNNERS_GITHUB_APP_INSTALLATION_ID, RUNNERS_GITHUB_APP_PRIVATE_KEY of environment mk4, deploy/minikube/runners/README.md)"; exit 1; }
+          [[ ${#missing[@]} -eq 0 ]] || { echo "::error::Not set: ${missing[*]}. Run scripts/setup-minikube-terraform-ci.sh (TF_VAR_github_runners_app_*: secrets RUNNERS_GITHUB_APP_ID, RUNNERS_GITHUB_APP_INSTALLATION_ID, RUNNERS_GITHUB_APP_PRIVATE_KEY of environment mk4, deploy/minikube/runners/README.md)"; exit 1; }
 
       - name: AWS credentials (state only)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -202,10 +197,10 @@ jobs:
         run: |
           set -euo pipefail
           # Only this root's releases.
-          releases='^(metrics-server|cert-manager|letsencrypt-jithendar|istio-base|istio-cni|istiod|istio-ingressgateway|istio-edge|istio-mesh|kiali|prometheus|grafana|loki|otel-collector|jaeger|tempo|local-path-provisioner|cnpg|barman-cloud|postgres-cluster|postgres-access|argocd|harbor-access|harbor|gatekeeper|gatekeeper-library|gatekeeper-constraints|arc|arc-runners|keda)$'
+          releases='^(metrics-server|cert-manager|letsencrypt-jithendar|istio-base|istio-cni|istiod|istio-ingressgateway|istio-edge|istio-mesh|kiali|prometheus|grafana|loki|otel-collector|jaeger|tempo|local-path-provisioner|cnpg|barman-cloud|postgres-cluster|postgres-access|argocd|gatekeeper|gatekeeper-library|gatekeeper-constraints|arc|arc-runners|keda)$'
           { echo '### Helm releases'; echo '```'; helm list -A --filter "$releases"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # Jaeger or Tempo (var.tempo), never both: the apply that installs Tempo uninstalls Jaeger.
-          expected=29
+          expected=27
           deployed=$(helm list -A --filter "$releases" --deployed -q | wc -l)
           [[ "$deployed" -eq "$expected" ]] || { echo "::error::$deployed of $expected releases deployed"; helm list -A --filter "$releases"; exit 1; }
           # A freshly started pod (Kiali warms its caches) and a new route answer 503 for a while: retry for 3 min.

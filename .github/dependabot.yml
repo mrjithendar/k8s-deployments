@@ -11,8 +11,7 @@
 # Not covered, because Dependabot cannot read them; bump these by hand: Helm chart versions in
 # deploy/minikube/applications/*.yaml and the helm_release blocks in minikube-infrastructure/*.tf (ARC: an uninstall and
 # reinstall, deploy/minikube/runners/README.md), scripts/argocd/ and
-# deploy/minikube/deploy-*.sh, terraform_version in the workflows, the Harbor images (custom tags in
-# deploy/minikube/harbor/values.yaml, built by build-harbor-images.yml), and the Vault image
+# deploy/minikube/deploy-*.sh, terraform_version in the workflows, and the Vault image
 # (deploy/minikube/vault/values.yaml has no Chart.yaml, and tests/test_vault_chart.py pins it).
 # Host tool versions are in the tools repository (scripts/setup/versions.json).
 
@@ -23,8 +22,6 @@ updates:
   - package-ecosystem: docker
     directories:
       - /deploy/minikube/ecr-refresh
-      - /deploy/minikube/harbor/manifests
-      - /deploy/minikube/harbor/examples
       # The runner image's base (FROM in deploy/minikube/runners/image/Dockerfile): GitHub stops sending jobs to runner
       # versions that are too old. Merging needs the new tag in runners/values.yaml (build-runner-image.yml says which).
       - /deploy/minikube/runners/image
@@ -43,9 +40,6 @@ updates:
     ignore:
       # Major PostgreSQL upgrades need pg_upgrade or a dump/restore of the data volume.
       - dependency-name: postgres
-        update-types: ["version-update:semver-major"]
-      # Harbor's cache: take a Valkey major deliberately, not in a routine bump.
-      - dependency-name: valkey/valkey
         update-types: ["version-update:semver-major"]
       # The ECR refresh job already runs the newest Python (3.15); move minors by hand.
       - dependency-name: python

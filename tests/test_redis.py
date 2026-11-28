@@ -14,7 +14,7 @@ EDGE = yaml.safe_load((ROOT / 'deploy/minikube/istio/edge/values.yaml').read_tex
 PROMETHEUS = yaml.safe_load((ROOT / 'deploy/minikube/observability/prometheus/values.yaml').read_text())
 POSTRENDER = ROOT / 'deploy/minikube/redis/postrender-haproxy.sh'
 IPS = ['192.0.2.1/32', '198.51.100.0/24']
-CLIENTS = ['harbor', 'jithendar']
+CLIENTS = ['jithendar', 'roboshop-ai']
 
 
 def render(*args):
@@ -58,7 +58,7 @@ def test_tenants_are_terraform_variables_not_chart_values():
     # redis.tf appends the users to extraConfig; a user line here would be duplicated or overwritten.
     assert not any(line.startswith('user ') for line in VALUES['config']['extraConfig'])
     tfvars = (ROOT / 'minikube-infrastructure/vars/mk4.tfvars').read_text()
-    for name, namespace in {'jithendar': 'jithendar', 'practice': 'jithendar', 'harbor': 'harbor', 'roboshop': 'roboshop-ai',
+    for name, namespace in {'jithendar': 'jithendar', 'practice': 'jithendar', 'roboshop': 'roboshop-ai',
                             'litellm': 'rag'}.items():
         assert f'{name}' in tfvars and f'namespace = "{namespace}"' in tfvars
 

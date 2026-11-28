@@ -70,7 +70,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--context', default='mk4')
     parser.add_argument('--services', nargs='+', choices=TARGETS, default=['roboshop', 'monitoring', 'wordpress'],
-                        help='Default: roboshop monitoring wordpress; optionally include jfrog. Harbor\'s are Terraform\'s (harbor.tf)')
+                        help='Default: roboshop monitoring wordpress; optionally include jfrog.')
     parser.add_argument('--all', action='store_true', help='Include JFrog installation credentials')
     parser.add_argument('--apply', action='store_true', help='Create missing credentials (default: offline preview)')
     parser.add_argument('--dry-run', action='store_true', help='Offline preview, even with --apply')

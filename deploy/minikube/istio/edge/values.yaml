@@ -7,7 +7,7 @@
 #   - this chart: the Gateway, its certificate, the routing table for jithendar.com (which path prefix belongs to
 #     which application), redirects, logins (basic auth) and gateway-wide behaviour (compression, client addresses);
 #   - each application: a delegate VirtualService in its own namespace (no hosts, no gateways) for its prefix, or a
-#     VirtualService of its own for its own hostname (registry., jfrog., db.).
+#     VirtualService of its own for its own hostname (jfrog., db.).
 selector:
   istio: ingressgateway
 
@@ -24,7 +24,6 @@ gateway:
   https:
     - istio-ingress/jithendar.com
     - istio-ingress/www.jithendar.com
-    - harbor/registry.jithendar.com
     - jfrog/jfrog.jithendar.com
   # TLS terminated here, then plain TCP (VirtualService tcp routes): PostgreSQL at postgres.jithendar.com:443 (the
   # CloudNativePG cluster, deploy/minikube/postgres/access); Redis at
@@ -43,8 +42,6 @@ root:
   # Redirected to host, path and query kept (308).
   aliases: [www.jithendar.com]
   redirects:
-    # Harbor cannot be served under a path prefix: its portal lives on its own hostname.
-    - {name: harbor, prefix: /harbor, authority: registry.jithendar.com}
     - {name: jfrog, prefix: /jfrog, authority: jfrog.jithendar.com, uri: /ui/}
     - {name: vault, prefix: /vault, uri: /ui/}
   delegates:
@@ -125,15 +122,14 @@ overwriteForwardedFor: true
 
 # Delegates for add-ons whose upstream charts render only an Ingress (turned off in their values): rendered here, in
 # the add-on's namespace (templates/route-*.yaml). Applications and local charts keep their own (moks, roboshop-ai, jithendar.com, Prometheus,
-# Loki, Argo CD, Harbor, Vault, JFrog).
+# Loki, Argo CD, Vault, JFrog).
 addonRoutes:
   kiali: {namespace: istio-system, host: kiali, port: 20001}
   grafana: {namespace: monitoring, host: grafana, port: 80}
 
-# Cloudflare in front of jithendar.com and www (proxied DNS records). registry., jfrog., postgres. and redis. stay
-# DNS-only: they are not plain HTTPS (Harbor pushes exceed Cloudflare's 100 MB request limit; PostgreSQL and Redis are
-# TLS-wrapped TCP), and their IP allowlists need the visitor's own address. Both switches are set by Terraform
-# (var.cloudflare_proxied, var.cloudflare_access); off here.
+# Cloudflare in front of jithendar.com and www (proxied DNS records). jfrog., postgres. and redis. stay DNS-only:
+# PostgreSQL and Redis are TLS-wrapped TCP, not plain HTTPS, and their IP allowlists need the visitor's own address.
+# Both switches are set by Terraform (var.cloudflare_proxied, var.cloudflare_access); off here.
 cloudflare:
   # On (templates/cloudflare-client-address.yaml): the visitor's address is CF-Connecting-IP when the connection comes
   # from Cloudflare, else the PROXY protocol's address, as before. A request that carries CF-Connecting-IP from

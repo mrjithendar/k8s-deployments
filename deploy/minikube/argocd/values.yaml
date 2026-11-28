@@ -98,6 +98,109 @@ extraObjects:
             - destination:
                 host: argocd-server.argocd.svc.cluster.local
                 port: {number: 80}
+  # The UI shares the jithendar.com origin, so its localStorage, with the site and every other tool under it. Argo CD's
+  # main.js starts with JSON.parse(localStorage.getItem("theme")) || "light", and Open WebUI (/chat) stores a bare
+  # word under that key: "system" on its first load, and light, dark, oled-dark or her from its theme picker. JSON.parse
+  # threw on that ('"system" is not valid JSON') and the UI never started, a blank page (2026-11-28; the site's own
+  # theme had done the same on 2026-11-19 and moved to site-theme). Argo CD only reads the key, never writes it.
+  #
+  # A Lua filter in argocd-server's sidecar (inbound, the server port) adds a script to Argo CD's page, before
+  # main.js runs (deferred), that makes localStorage.getItem("theme") answer null when the stored value is not JSON:
+  # Argo CD then starts in its default theme, and Open WebUI's value stays as it is. Every page load asks Argo CD for
+  # an uncompressed page (it gzips otherwise), so the script can go in; the gateway compresses the page on the way
+  # out (istio/edge, values compression). The chart passes extraObjects through tpl: no template braces in here.
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: EnvoyFilter
+    metadata:
+      name: argocd-theme-guard
+      namespace: argocd
+    spec:
+      workloadSelector:
+        labels:
+          app.kubernetes.io/name: argocd-server
+          app.kubernetes.io/instance: argocd
+      configPatches:
+        - applyTo: HTTP_FILTER
+          match:
+            context: SIDECAR_INBOUND
+            listener:
+              # argocd-server's container port (--port=8080; the Service's targetPort for 80 and 443).
+              portNumber: 8080
+              filterChain:
+                filter:
+                  name: envoy.filters.network.http_connection_manager
+                  subFilter:
+                    name: envoy.filters.http.router
+          patch:
+            operation: INSERT_BEFORE
+            value:
+              name: argocd.theme-guard
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                default_source_code:
+                  inline_string: |
+                    -- The browser part: getItem("theme") on localStorage answers null for a value JSON.parse
+                    -- cannot read; every other key, every other storage and setItem are untouched. Patched on the
+                    -- prototype: assigning localStorage.getItem would store an item named "getItem" instead.
+                    local SCRIPT = [==[<script>(function () {
+                      var getItem = Storage.prototype.getItem;
+                      Storage.prototype.getItem = function (key) {
+                        var value = getItem.apply(this, arguments);
+                        if (key !== "theme" || value === null || this !== window.localStorage) return value;
+                        try {
+                          JSON.parse(value);
+                          return value;
+                        } catch (e) {
+                          return null;
+                        }
+                      };
+                    })();</script>]==]
+
+                    -- A page load (not a file or an API call). Browsers say so in Sec-Fetch-Dest. Without it (curl)
+                    -- go by the path: the VirtualService sets Accept to text/html on everything but the API, so
+                    -- Accept tells nothing here. Not the API, and no "." in the last segment (main.*.js, assets/...).
+                    local function is_page(headers)
+                      local dest = headers:get("sec-fetch-dest")
+                      if dest ~= nil then
+                        return dest == "document"
+                      end
+                      local path = string.gsub(headers:get(":path") or "", "[?#].*$", "")
+                      if string.find(path, "/api/", 1, true) ~= nil then
+                        return false
+                      end
+                      return string.find(string.match(path, "[^/]*$"), ".", 1, true) == nil
+                    end
+
+                    function envoy_on_request(request_handle)
+                      local headers = request_handle:headers()
+                      if is_page(headers) then
+                        headers:remove("accept-encoding")
+                      end
+                    end
+
+                    function envoy_on_response(response_handle)
+                      local headers = response_handle:headers()
+                      local content_type = headers:get("content-type")
+                      if content_type == nil or string.find(content_type, "text/html", 1, true) == nil then
+                        return
+                      end
+                      -- Compressed anyway (a request the filter did not take for a page): leave it alone.
+                      if headers:get("content-encoding") ~= nil then
+                        return
+                      end
+                      local body = response_handle:body()
+                      if body == nil then
+                        return
+                      end
+                      local html = body:getBytes(0, body:length())
+                      local _, head_end = string.find(html, "<head>", 1, true)
+                      if head_end == nil then
+                        return
+                      end
+                      local length = body:setBytes(string.sub(html, 1, head_end) .. SCRIPT .. string.sub(html, head_end + 1))
+                      -- Reading the body ends the first headers handle's scope: take a new one.
+                      response_handle:headers():replace("content-length", tostring(length))
+                    end
   # The chart's NetworkPolicies isolate ingress for its pods. Prometheus (namespace monitoring) also needs the
   # sidecar's ports, or Kiali gets no traffic for argocd: 15020 merged metrics and health, 15090 Envoy's own. Nothing
   # here is egress-isolated, so the sidecars reach DNS, istiod and Valkey.

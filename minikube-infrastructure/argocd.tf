@@ -1,5 +1,6 @@
 # Argo CD at https://jithendar.com/argocd (release argocd, namespace argocd, chart argo-cd). Values:
-# deploy/minikube/argocd/values.yaml, which also renders the /argocd VirtualService and the sidecar NetworkPolicy.
+# deploy/minikube/argocd/values.yaml, which also renders the /argocd VirtualService, the sidecar NetworkPolicy and
+# EnvoyFilter argocd-theme-guard (a non-JSON localStorage "theme" from another tool on the origin blanked the UI).
 #
 # No Redis of its own: Argo CD's cache is on the shared Valkey (redis.tf) as the built-in tenant "argocd" (ACL user
 # argocd, database 7 only, no admin command). Valkey is a Terraform release, never an Argo CD Application, so the GitOps

@@ -49,6 +49,7 @@ redis_tenants = {
   practice = { namespace = "jithendar", databases = [1] }       # practice executor queue (EXECUTOR_REDIS_URL)
   harbor   = { namespace = "harbor", databases = [2, 3, 4, 5] } # core, jobservice, registry, trivy
   roboshop = { namespace = "roboshop-ai", databases = [6] }     # cart and shipping cache
+  litellm  = { namespace = "rag", databases = [8] }             # moks-rag LiteLLM: rate limits, spend counters, cross-pod model sync (REDIS_URL)
 }
 
 # GitHub Actions runners (runners.tf): one scale set for every repository of the organization mrjithendar

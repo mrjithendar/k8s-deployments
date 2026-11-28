@@ -177,13 +177,32 @@ extraScrapeConfigs:
   - job_name: alloy
     static_configs:
       - targets: ["alloy.monitoring.svc.cluster.local:12345"]
-  # Trace pipeline health: spans accepted/refused/failed by the collector and Jaeger's own receiver and storage.
+  # Trace pipeline health: spans accepted/refused/failed by the collector and by the trace store, Jaeger or Tempo
+  # (Terraform's var.tempo picks one, minikube-infrastructure/tempo.tf). The stores are found by their Service's DNS
+  # name: the one not installed has no record, so its job has no target instead of a target that is down. The ClusterIP
+  # is the target, so the scrape still goes out through this Prometheus's sidecar as mTLS.
   - job_name: otel-collector
     static_configs:
       - targets: ["otel-collector.observability.svc.cluster.local:8888"]
   - job_name: jaeger
-    static_configs:
-      - targets: ["jaeger.observability.svc.cluster.local:8888"]
+    dns_sd_configs:
+      - names: ["jaeger.observability.svc.cluster.local"]
+        type: A
+        port: 8888
+    relabel_configs:
+      - target_label: service
+        replacement: jaeger
+  # Tempo's own metrics on its HTTP port: tempo_distributor_spans_received_total, tempo_discarded_spans_total,
+  # tempo_live_store_* (blocks written to R2 or failing), tempodb_backend_request_duration_seconds (R2 calls by status).
+  - job_name: tempo
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["tempo.observability.svc.cluster.local"]
+        type: A
+        port: 3200
+    relabel_configs:
+      - target_label: service
+        replacement: tempo
 
 # No node pin: the local-path volume keeps the pod on the node that holds its data.
 nodeSelector: {}

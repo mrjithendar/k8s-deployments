@@ -63,7 +63,7 @@ run "pinned_releases" {
       helm_release.grafana.namespace == "monitoring" &&
       helm_release.loki.namespace == "monitoring" &&
       helm_release.otel_collector.namespace == "observability" &&
-      helm_release.jaeger.namespace == "observability"
+      helm_release.jaeger[0].namespace == "observability"
     )
     error_message = "Release namespaces must match the live installations."
   }
@@ -71,7 +71,7 @@ run "pinned_releases" {
   assert {
     condition = alltrue([for r in [
       helm_release.metrics_server, helm_release.cert_manager, helm_release.prometheus, helm_release.grafana,
-      helm_release.loki, helm_release.otel_collector, helm_release.jaeger,
+      helm_release.loki, helm_release.otel_collector, helm_release.jaeger[0],
     ] : r.take_ownership])
     error_message = "These objects were applied by Argo CD without a Helm release; the first apply must adopt them."
   }
@@ -603,4 +603,170 @@ run "grafana_public_never_the_main_org" {
   }
 
   expect_failures = [var.grafana_public]
+}
+
+# Traces: Jaeger until var.tempo is set, then Tempo on R2 in its place (tempo.tf).
+run "traces_stay_on_jaeger_without_tempo" {
+  command = plan
+
+  variables {
+    grafana_public = null
+  }
+
+  assert {
+    condition = (
+      length(helm_release.jaeger) == 1 &&
+      length(helm_release.tempo) == 0 &&
+      length(data.kubernetes_secret_v1.tempo_r2) == 0 &&
+      yamldecode(helm_release.otel_collector.values[1]).tracesEndpoint == "http://jaeger:4318"
+    )
+    error_message = "Without var.tempo Jaeger stays, the collector sends to it, and no R2 Secret is needed."
+  }
+
+  assert {
+    # grafana_public is unset here: only values.yaml, whose Jaeger data source stays.
+    condition     = length(helm_release.grafana.values) == 1
+    error_message = "Without var.tempo Grafana keeps values.yaml's data sources (Jaeger)."
+  }
+}
+
+run "tempo_replaces_jaeger" {
+  command = plan
+
+  variables {
+    grafana_public = null
+    tempo = {
+      account_id = "0123456789abcdef0123456789abcdef"
+      bucket     = "jithendar-traces"
+      retention  = "720h"
+    }
+  }
+
+  override_data {
+    target = data.kubernetes_secret_v1.tempo_r2
+    values = {
+      data = {
+        AWS_ACCESS_KEY_ID     = "k"
+        AWS_SECRET_ACCESS_KEY = "s"
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length(helm_release.jaeger) == 0 &&
+      helm_release.tempo[0].repository == "https://grafana-community.github.io/helm-charts" &&
+      helm_release.tempo[0].chart == "tempo" &&
+      helm_release.tempo[0].version == "3.2.1" &&
+      helm_release.tempo[0].namespace == helm_release.otel_collector.namespace &&
+      yamldecode(helm_release.otel_collector.values[1]).tracesEndpoint == "http://tempo:4318"
+    )
+    error_message = "With var.tempo Tempo (pinned chart) replaces Jaeger in observability, and the collector sends to it."
+  }
+
+  assert {
+    condition = (
+      yamldecode(helm_release.tempo[0].values[1]).tempo.retention == "720h" &&
+      yamldecode(helm_release.tempo[0].values[1]).tempo.storage.trace.s3.bucket == "jithendar-traces" &&
+      yamldecode(helm_release.tempo[0].values[1]).tempo.storage.trace.s3.endpoint == "0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com" &&
+      yamldecode(helm_release.tempo[0].values[0]).tempo.storage.trace.backend == "s3" &&
+      yamldecode(helm_release.tempo[0].values[0]).tempo.storage.trace.s3.part_size >= 5242880 &&
+      yamldecode(helm_release.tempo[0].values[0]).tempo.extraEnvFrom == [{ secretRef = { name = "tempo-r2" } }] &&
+      alltrue([for v in helm_release.tempo[0].values : length(setintersection(keys(yamldecode(v).tempo.storage.trace.s3), ["access_key", "secret_key"])) == 0])
+    )
+    error_message = "Tempo writes to the R2 bucket with equal multipart parts (R2 needs them), keeps blocks for the retention, and takes its keys from Secret tempo-r2, never from its values."
+  }
+
+  assert {
+    condition = (
+      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources.yaml"].datasources : "${ds.type}/${ds.uid}"] == ["prometheus/roboshop-prometheus", "loki/roboshop-loki", "tempo/tempo"] &&
+      yamldecode(helm_release.grafana.values[1]).datasources["datasources.yaml"].deleteDatasources == [{ name = "Jaeger", orgId = 1 }] &&
+      [for f in [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources.yaml"].datasources : ds if ds.type == "loki"][0].jsonData.derivedFields : f.datasourceUid] == ["tempo"]
+    )
+    error_message = "Grafana's main org gets Tempo in place of Jaeger (deleted from its database), and Loki's trace links open Tempo."
+  }
+}
+
+run "tempo_with_public_grafana" {
+  command = plan
+
+  variables {
+    cloudflare_proxied = true
+    grafana_public     = { org_id = 2 }
+    tempo = {
+      account_id = "0123456789abcdef0123456789abcdef"
+      bucket     = "jithendar-traces"
+      retention  = "720h"
+    }
+  }
+
+  override_data {
+    target = data.kubernetes_secret_v1.tempo_r2
+    values = {
+      data = {
+        AWS_ACCESS_KEY_ID     = "k"
+        AWS_SECRET_ACCESS_KEY = "s"
+      }
+    }
+  }
+
+  assert {
+    # The public org's document stays second and never gets traces; Tempo's comes last.
+    condition = (
+      length(helm_release.grafana.values) == 3 &&
+      [for ds in yamldecode(helm_release.grafana.values[1]).datasources["datasources-public.yaml"].datasources : ds.type] == ["prometheus", "loki"] &&
+      contains([for ds in yamldecode(helm_release.grafana.values[2]).datasources["datasources.yaml"].datasources : ds.type], "tempo")
+    )
+    error_message = "With grafana_public and tempo, the org \"Public\" still gets only Prometheus and Loki."
+  }
+}
+
+run "tempo_needs_its_r2_secret" {
+  command = plan
+
+  variables {
+    tempo = {
+      account_id = "0123456789abcdef0123456789abcdef"
+      bucket     = "jithendar-traces"
+      retention  = "720h"
+    }
+  }
+
+  # The provider returns an empty Secret when it does not exist.
+  override_data {
+    target = data.kubernetes_secret_v1.tempo_r2
+    values = {
+      data = {}
+    }
+  }
+
+  expect_failures = [data.kubernetes_secret_v1.tempo_r2]
+}
+
+run "tempo_retention_is_a_positive_duration" {
+  command = plan
+
+  variables {
+    tempo = {
+      account_id = "0123456789abcdef0123456789abcdef"
+      bucket     = "jithendar-traces"
+      retention  = "0h"
+    }
+  }
+
+  expect_failures = [var.tempo]
+}
+
+run "tempo_retention_has_no_days" {
+  command = plan
+
+  variables {
+    tempo = {
+      account_id = "0123456789abcdef0123456789abcdef"
+      bucket     = "jithendar-traces"
+      retention  = "30d"
+    }
+  }
+
+  expect_failures = [var.tempo]
 }

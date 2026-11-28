@@ -3,3 +3,6 @@
 # Keep the plain multi-arch tag: mk4's nodes are arm64. Dependabot once "bumped" this to 0.164.0-386 (a 32-bit x86
 # single-arch tag: "exec format error", CrashLoopBackOff, Helm upgrade timeout); close any PR adding an -<arch> suffix.
 image: otel/opentelemetry-collector:0.165.0
+# OTLP/HTTP address of the trace store (collector.yaml, exporter otlp_http/traces). Terraform always sets it: Jaeger, or
+# Tempo while var.tempo is set (minikube-infrastructure/tempo.tf, local.traces_otlp_endpoint).
+tracesEndpoint: http://jaeger:4318

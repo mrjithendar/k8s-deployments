@@ -8,7 +8,7 @@ built from this directory. Terraform applies the local checkout, not `master`.
 | Metrics | Prometheus 3.15 | `prometheus` | `monitoring` | [`prometheus/`](prometheus/README.md) (local Helm chart) |
 | Dashboards | Grafana (community chart 14.0.1) | `grafana` | `monitoring` | [`grafana/values.yaml`](grafana/README.md) |
 | Logs | Loki 3.7.9 + Alloy 1.21.2 | `loki` | `monitoring` | [`loki/`](loki/README.md) (local Helm chart) |
-| Traces | OpenTelemetry Collector 0.162 → Jaeger 2.22 | `otel-collector`, `jaeger` | `observability` | [`otel-collector/`](otel-collector/), [`jaeger/`](jaeger/) (local Helm charts, `jaeger.yaml`), [design notes](opentelemetry/README.md) |
+| Traces | OpenTelemetry Collector 0.165 → Jaeger 2.22 (in memory), or Tempo 3.1 on R2 while Terraform's `tempo` is set | `otel-collector`, `jaeger` or `tempo` | `observability` | [`otel-collector/`](otel-collector/), [`jaeger/`](jaeger/) (local Helm charts, `jaeger.yaml`), [`tempo/`](tempo/README.md) (grafana-community chart), [design notes](opentelemetry/README.md) |
 | Mesh | Kiali 2.34 on Istio 1.30.7; Grafana Platform · Istio mesh / control plane | `kiali`, `istiod`, `istio-base` | `istio-system` | [`../istio/`](../istio/README.md#monitoring) |
 
 ```bash
@@ -37,6 +37,9 @@ terraform -chdir=minikube-infrastructure apply -var-file=vars/mk4.tfvars
   the short name `otel-collector:4318` working; remove it once every RoboShop pod
   has restarted with the new endpoint. Jaeger storage is in-memory (`jaeger/jaeger.yaml`, newest 5000 traces),
   with no ingress. Both expose their own metrics on :8888 (Prometheus jobs `otel-collector`, `jaeger`).
+- **Tempo** replaces Jaeger once `tempo` is set in `vars/mk4.tfvars` ([`tempo/README.md`](tempo/README.md)): every
+  span the collector passes on goes to a private R2 bucket and is kept for the retention set there. Grafana's
+  data source is then `Tempo` (uid `tempo`) instead of `Jaeger`; Prometheus job `tempo` (`:3200`).
 
 ## Access
 
@@ -47,7 +50,8 @@ terraform -chdir=minikube-infrastructure apply -var-file=vars/mk4.tfvars
   push from EKS at `/loki/api/v1/push` with its own login,
   [`loki-push-auth`](loki/README.md#remote-push-logs-from-eks). Use Grafana Explore for logs.
 - Jaeger: cluster-internal only. Use
-  `kubectl -n roboshop-ai port-forward svc/jaeger 16686` for the UI.
+  `kubectl -n observability port-forward svc/jaeger 16686` for the UI.
+- Tempo (instead of Jaeger): no UI of its own and no route; Grafana Explore → Tempo.
 
 TLS comes from the shared `jithendar/jithendar-com` Certificate, served to every
 route through Traefik's default TLSStore (`shared-tls` Application). The monitoring

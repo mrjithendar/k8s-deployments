@@ -25,7 +25,10 @@ spec:
       - name: otel-collector
         image: {{ .Values.image | quote }}
         imagePullPolicy: IfNotPresent
-        env: []
+        env:
+        # collector.yaml's exporter endpoint (${env:TRACES_ENDPOINT}).
+        - name: TRACES_ENDPOINT
+          value: {{ required "tracesEndpoint: the trace store's OTLP/HTTP address" .Values.tracesEndpoint | quote }}
         resources:
           requests:
             cpu: 50m

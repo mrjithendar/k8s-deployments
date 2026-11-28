@@ -31,6 +31,16 @@ grafana_public = {
   org_id = 2
 }
 
+# Traces in Cloudflare R2 with Grafana Tempo instead of Jaeger's memory (tempo.tf). Uncomment only after steps 1-3 of
+# deploy/minikube/observability/tempo/README.md: the bucket, its token, and Secret observability/tempo-r2
+# (scripts/tempo/r2-secret.sh); without the Secret the plan stops. Retention: how long a trace is kept, in h/m/s
+# (Tempo has no "keep forever"); the owner picks it.
+# tempo = {
+#   account_id = "<32-hex Cloudflare account ID>"
+#   bucket     = "<bucket name>"
+#   retention  = "<e.g. 2160h>"
+# }
+
 # Applications on the shared cluster (postgres.tf). Each gets database + owner role <key> and Secret
 # <namespace>/postgres-db-credentials. Listed ahead of moving them off their own PostgreSQL pods (README.md, PostgreSQL,
 # "Moving an application"); until an application switches, its database here stays empty.

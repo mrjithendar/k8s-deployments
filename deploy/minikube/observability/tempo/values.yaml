@@ -1,0 +1,68 @@
+# Grafana Tempo 3.1 in one pod (grafana-community chart "tempo" 3.2.1, single binary). Terraform:
+# minikube-infrastructure/tempo.tf, installed only while var.tempo is set; it adds the bucket, the R2 endpoint and the
+# retention to these values. README.md in this directory: setup, checks, cost.
+#
+# Spans arrive from the OpenTelemetry Collector (OTLP/HTTP :4318, after its privacy filter). The live-store keeps the
+# newest traces in memory and writes them to its WAL on the PVC below; about every 30 s it cuts a block and writes
+# it to R2. The backend scheduler and worker (Tempo 3's compactor) merge blocks and delete the ones older than the
+# retention. Grafana reads everything through :3200 (data source Tempo).
+fullnameOverride: tempo # Service tempo.observability, what the collector and Grafana call
+
+tempo:
+  registry: docker.io
+  repository: grafana/tempo
+  tag: 3.1.1 # multi-arch (arm64 for mk4); keep it equal to the chart's appVersion
+  reportingEnabled: false
+
+  # About 2 spans/s on average and 9/s at the busiest five minutes (Jaeger, 24 hours to 2026-11-28); Jaeger used 26 MiB.
+  # Tempo sets GOMEMLIMIT from the limit. Starting values: compare with container_memory_working_set_bytes after a week.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  storage:
+    trace:
+      backend: s3
+      s3:
+        # bucket and endpoint (<account_id>.r2.cloudflarestorage.com) come from Terraform (var.tempo).
+        region: auto # R2 has a single region, "auto"
+        forcepathstyle: true
+        # R2 refuses a multipart upload whose parts (all but the last) differ in size. With part_size 0 Tempo uploads
+        # whatever each flush holds as one part; set, it cuts equal parts. 5 MiB is the minimum for both Tempo and R2.
+        part_size: 5242880
+      local: null # the chart's default backend
+      wal:
+        path: /var/tempo/wal
+
+  # The R2 token (keys AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) from Secret observability/tempo-r2, made by
+  # scripts/tempo/r2-secret.sh. Tempo's S3 client reads them from the environment, so they never appear in tempo.yaml,
+  # the Helm release or the Terraform plan.
+  extraEnvFrom:
+    - secretRef:
+        name: tempo-r2
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true # it writes only under /var/tempo (the PVC)
+    capabilities:
+      drop: [ALL]
+
+  # The receivers stay the chart's default (OTLP gRPC and HTTP, Jaeger): its Service template needs the Jaeger entries.
+  # Only OTLP/HTTP :4318 is used, by the collector; the namespace's AuthorizationPolicy limits who can reach any port.
+
+# Tempo calls no Kubernetes API.
+serviceAccount:
+  automountServiceAccountToken: false
+
+# The WAL and the live-store's blocks: what has not reached R2 yet survives a restart and is replayed. On local-path,
+# like Loki and Prometheus: the pod always comes back to the node that holds the volume. local-path does not enforce
+# the size; the WAL holds only the last minutes (more only while R2 is unreachable).
+persistence:
+  enabled: true
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  size: 10Gi

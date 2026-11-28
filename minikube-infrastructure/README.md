@@ -18,7 +18,8 @@ only the AppProject `mk-platform` and the opt-in `harbor`.
 | `grafana.tf` | `grafana` | grafana-community `grafana` 14.0.1 | `monitoring` | `deploy/minikube/observability/grafana/values.yaml`; dashboards from [mrjithendar/monitoring](https://github.com/mrjithendar/monitoring), loaded by the dashboard sidecar from ConfigMaps in namespace `grafana-dashboards` (also Terraform's, with that repository's deploy ServiceAccount `github-dashboards-deployer`) |
 | `loki.tf` | `loki` | local `deploy/minikube/observability/loki` (Loki + Alloy) | `monitoring` | `loki.yaml`, `config.alloy` |
 | `otel-collector.tf` | `otel-collector` | local `deploy/minikube/observability/otel-collector` | `observability` | `collector.yaml` |
-| `jaeger.tf` | `jaeger` | local `deploy/minikube/observability/jaeger` | `observability` | `jaeger.yaml` |
+| `jaeger.tf` | `jaeger` (only while `tempo` is unset) | local `deploy/minikube/observability/jaeger` | `observability` | `jaeger.yaml` |
+| `tempo.tf` | `tempo` (only while `tempo` is set) | grafana-community `tempo` 3.2.1 (Tempo 3.1.1) | `observability` | `deploy/minikube/observability/tempo/values.yaml`: traces in a private R2 bucket for `tempo.retention`, keys from Secret `observability/tempo-r2` (`scripts/tempo/r2-secret.sh`); replaces Jaeger, the collector's endpoint and Grafana's trace data source in the same apply ([README](../deploy/minikube/observability/tempo/README.md)) |
 | `local-path.tf` | `local-path-provisioner` | vendored `deploy/minikube/storage/local-path-provisioner` (rancher v0.0.37) | `local-path-storage` | `deploy/minikube/storage/local-path.yaml`; StorageClass `local-path` (node-pinned, Retain, not default) |
 | `postgres.tf` | `cnpg` | cnpg `cloudnative-pg` 0.29.1 (operator 1.30.1) | `cnpg-system` | `deploy/minikube/postgres/operator.yaml` |
 | `postgres.tf` | `postgres-cluster`, `postgres-access` | cnpg `cluster` 0.9.0; local `deploy/minikube/postgres/access` | `postgres-db` | `deploy/minikube/postgres/cluster.yaml` + per-application databases/roles/Secrets from `postgres_databases`; pgAdmin 4 (+ admin Secret `postgres-ui-admin`), TCP route, gateway allowlists (`postgres_allowed_ips`), NetworkPolicies, metrics Service |
@@ -53,7 +54,7 @@ All through the Istio gateway on `jithendar.com` (routing table and logins: `dep
 | https://jithendar.com/loki/api/v1/push | basic auth, Secret `monitoring/loki-push-auth` |
 
 Loki has no UI and no authentication of its own, so `/loki` stays limited to the read endpoints MOKS calls and the push
-path. Query logs in Grafana (Explore → Loki). Jaeger and the collector stay cluster-internal.
+path. Query logs in Grafana (Explore → Loki). Jaeger (or Tempo) and the collector stay cluster-internal.
 
 **Kiali sign-in:** `kubectl --context mk4 -n istio-system create token kiali --duration=8h`, paste the token. The UI is
 view only (`deployment.view_only_mode`). Its graph is empty until a namespace has sidecars:

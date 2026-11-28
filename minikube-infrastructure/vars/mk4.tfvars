@@ -16,8 +16,8 @@ redis_allowed_ips = ["122.177.247.138/32"]
 cloudflare_proxied = true
 
 # Step 8, once the Zero Trust application for the admin tools exists (steps 2-5): the gateway then requires its Access
-# token on /argocd, /kiali, /grafana, /prometheus, /loki, /postgres, /redis, /qdrant, /ui and /v1, and the /postgres and
-# /redis IP allowlists switch off. Until then /postgres and /redis answer 403 through Cloudflare (their allowlists only
+# token on /argocd, /kiali, /grafana, /prometheus, /loki, /postgres, /redis, /qdrant, /docling, /llm, /ui and /v1, and the
+# /postgres and /redis IP allowlists switch off. Until then /postgres and /redis answer 403 through Cloudflare (their allowlists only
 # ever see Cloudflare's addresses); postgres.jithendar.com and redis.jithendar.com keep their own allowlists either way.
 # cloudflare_access = {
 #   team_domain = "<team>.cloudflareaccess.com"
@@ -39,6 +39,7 @@ postgres_databases = {
   moks      = { namespace = "moks-sre", extensions = ["vector"] } # MOKS portal; pgvector for its knowledge search (rag.backend postgres)
   registry  = { namespace = "harbor" }                            # Harbor (harbor.tf): core and jobservice, database "registry"
   shipping  = { namespace = "roboshop-ai" }                       # RoboShop shipping; today roboshop-ai/shipping-db (PG 18)
+  litellm   = { namespace = "rag" }                               # moks-rag LiteLLM: models, credentials, virtual keys (Admin UI /llm)
 }
 
 # Applications on the shared Valkey (redis.tf). Each gets ACL user <key>, limited to its database numbers, and Secret

@@ -82,7 +82,8 @@ def test_tenants_are_terraform_variables_not_chart_values():
     # postgres.tf merges roles and databases from var.postgres_databases; values here would be overwritten.
     assert 'roles' not in CLUSTER['cluster'] and 'databases' not in CLUSTER
     tfvars = (ROOT / 'minikube-infrastructure/vars/mk4.tfvars').read_text()
-    for name, namespace in {'jithendar': 'jithendar', 'moks': 'moks-sre', 'registry': 'harbor', 'shipping': 'roboshop-ai'}.items():
+    for name, namespace in {'jithendar': 'jithendar', 'moks': 'moks-sre', 'registry': 'harbor', 'shipping': 'roboshop-ai',
+                            'litellm': 'rag'}.items():
         assert f'{name}' in tfvars and f'namespace = "{namespace}"' in tfvars
 
 

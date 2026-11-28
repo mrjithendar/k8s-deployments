@@ -168,6 +168,7 @@ isolated, keys are. Adding or changing a tenant rolls the StatefulSet (primary h
 | `harbor` | `harbor` | 2 core, 3 jobservice, 4 registry, 5 trivy | `password` (miniKube `deploy/minikube/harbor/values.yaml`) | `harbor-redis` databases 0, 1, 2, 5 |
 | `argocd` (built in, `argocd.tf`) | `argocd` | 7 | Argo CD's cache: server, repo-server, application controller (`externalRedis`, Secret `argocd-redis-valkey` with `redis-username`/`redis-password`; `configs.params.redis.db`) | `argocd-redis` |
 | `roboshop` | `roboshop-ai` | 6 | cart-service, shipping-service: host/port/username/password/db (roboshop-ai `argocd-minikube`) | `roboshop-ai/redis` |
+| `litellm` | `rag` | 8 | LiteLLM: rate-limit and spend counters, model-change broadcast between pods; no response cache: `REDIS_URL` = `uri` (moks-rag `deploy/k8s/litellm.yaml`) | (none: in-memory before) |
 
 No application on mk4 runs a Redis of its own any more.
 Argo CD included: Valkey is a Terraform release, not an Argo CD Application, so the GitOps controller never depends on

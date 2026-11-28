@@ -99,7 +99,7 @@ jobs:
           [[ ${#missing[@]} -eq 0 ]] || { echo "::error::Not set: ${missing[*]}. Run scripts/setup-minikube-terraform-ci.sh (TF_VAR_github_runners_app_*: secrets RUNNERS_GITHUB_APP_ID, RUNNERS_GITHUB_APP_INSTALLATION_ID, RUNNERS_GITHUB_APP_PRIVATE_KEY of environment mk4, deploy/minikube/runners/README.md)"; exit 1; }
 
       - name: AWS credentials (state only)
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
         with:
           role-to-assume: ${{ vars.MK4_TERRAFORM_ROLE_ARN }}
           aws-region: us-east-1

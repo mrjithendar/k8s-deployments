@@ -54,3 +54,21 @@ kubectl --context=mk4 -n argocd logs deployment/argocd-server --tail=100 | grep 
 Connection reset before any reply: the pod has no Istio sidecar (restart it after labelling the namespace) or namespace
 `argocd` is missing from the `redis-access` release's `clientNamespaces`. A 503 at /argocd means argocd-server is still
 starting.
+
+### Blank page: `"system" is not valid JSON`
+
+Argo CD shares the jithendar.com origin, so its `localStorage`, with the site and every other tool under it. Its
+`main.js` starts with `JSON.parse(localStorage.getItem("theme")) || "light"`, and Open WebUI (`/chat`) stores a bare
+word under `theme` (`system` on its first load, or its picker's light, dark, oled-dark, her). That throws in
+`theme.tsx` and the UI never starts.
+
+EnvoyFilter `argocd-theme-guard` (`extraObjects` in `values.yaml`) covers it: a Lua filter in argocd-server's sidecar
+adds a script to Argo CD's page so that `getItem("theme")` answers `null` for a value that is not JSON. Argo CD starts
+in its default theme and Open WebUI keeps its value. If the page is blank anyway:
+
+```bash
+kubectl -n argocd get envoyfilter argocd-theme-guard
+curl -s -H 'Accept: text/html' https://jithendar.com/argocd/ | head -c 120   # starts <head><script>
+```
+
+In one browser, until the filter is back: `localStorage.removeItem('theme')` in the console on any jithendar.com page.

@@ -37,7 +37,7 @@ auth:
 config:
   maxMemory: 512mb
   # Shared by caches and queues: evict only keys that carry a TTL (sessions, caches, rate limits), never queue entries
-  # (Harbor jobservice, the practice executor) that have none. Memory full of TTL-less keys refuses writes (OOM)
+  # (the practice executor) that have none. Memory full of TTL-less keys refuses writes (OOM)
   # instead of losing jobs: alert ValkeyMemoryHigh.
   maxMemoryPolicy: volatile-lru
   save: "3600 1 300 100 60 10000"

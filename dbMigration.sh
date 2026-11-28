@@ -5,7 +5,6 @@
 #   source pod                              -> target database / owning role (Terraform var.postgres_databases)
 #   jithendar/jithendar-postgres-0 (PG 18)  -> jithendar
 #   moks/moks-postgres-0           (PG 17)  -> moks
-#   harbor/harbor-postgres-0       (PG 18)  -> registry
 #   roboshop-ai/deploy/shipping-db (PG 18)  -> shipping
 #
 # How: mk4's API server is reached over the internet and long `kubectl exec` streams are cut after a few seconds, so
@@ -29,7 +28,7 @@
 #
 # Usage:
 #   ./dbMigration.sh --check                     read-only preflight for all databases
-#   ./dbMigration.sh [options] [db ...]          migrate (default: jithendar moks registry shipping)
+#   ./dbMigration.sh [options] [db ...]          migrate (default: jithendar moks shipping)
 #   ./dbMigration.sh --start-writers db ...      scale writers back and re-enable Argo CD auto-sync
 # Options:
 #   --yes        do not ask for confirmation
@@ -47,7 +46,7 @@ TARGET_HOST="${TARGET_CLUSTER}-rw.${TARGET_NS}.svc.cluster.local"
 ARGO_NS=argocd
 TEMP_NP="db-migration-egress"
 STATE_DIR="$(cd "$(dirname "$0")" && pwd)/db-migration-state"
-ALL_DBS="jithendar moks registry shipping"
+ALL_DBS="jithendar moks shipping"
 
 K() { kubectl --context "$KUBE_CONTEXT" "$@"; }
 
@@ -77,11 +76,6 @@ db_config() {
       SRC_SEL_KEY=app SRC_SEL_VAL=moks-postgres
       WRITERS="moks-api moks-crewai moks-executor moks-terminal moks-worker"
       ARGO_APPS="moks-root moks-api moks-crewai moks-executor moks-terminal moks-worker" ;;
-    registry)
-      SRC_NS=harbor SRC_POD=pod/harbor-postgres-0 SRC_CONTAINER=postgres
-      SRC_SEL_KEY=app.kubernetes.io/name SRC_SEL_VAL=harbor-postgres
-      WRITERS="harbor-core harbor-jobservice"
-      ARGO_APPS="harbor" ;;
     shipping)
       SRC_NS=roboshop-ai SRC_POD=deploy/shipping-db SRC_CONTAINER=shipping-db
       SRC_SEL_KEY=app SRC_SEL_VAL=shipping-db

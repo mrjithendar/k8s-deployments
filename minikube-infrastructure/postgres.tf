@@ -112,9 +112,6 @@ resource "kubernetes_secret_v1" "postgres_app" {
     direct-host = local.postgres_rw_host
     direct-uri  = "postgresql://${each.key}:${random_password.postgres[each.key].result}@${local.postgres_rw_host}:5432/${each.key}"
   }
-
-  # Namespaces this root creates (Harbor); the others must exist before the apply.
-  depends_on = [kubernetes_namespace_v1.harbor]
 }
 
 # The Barman Cloud plugin (CNPG-I): base backups and WAL archiving to object storage, as a sidecar in each instance

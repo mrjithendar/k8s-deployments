@@ -5,7 +5,7 @@ The self-hosted cluster: Argo CD hub, and the Terraform-managed Traefik and add-
 | Path | Contents | Applied by |
 |---|---|---|
 | `install.sh`, `kubeconfig.sh`, `expose-ingress.sh`, `tunnel-endpoint.sh`, `host-limits.sh`, `reset.sh` | Cluster lifecycle | Root wrappers or directly |
-| `applications/` | Argo CD catalog: AppProject `mk-platform`, opt-in Harbor | `./deploy-argocd.sh` |
+| `applications/` | Argo CD catalog: AppProject `mk-platform` | `./deploy-argocd.sh` |
 | `observability/` | Prometheus chart, Grafana values and dashboards chart, Loki and Alloy, OpenTelemetry collector, Jaeger (local Helm charts) | Terraform, [`minikube-infrastructure/`](../../minikube-infrastructure/README.md) |
 | `cert-manager/`, `metrics-server/`, `istio/` | cert-manager values and Let's Encrypt chart, metrics-server values, Istio and Kiali values | Terraform, `minikube-infrastructure/` |
 | `traefik/` | Traefik values ([README](traefik/README.md)) | Terraform, `minikube-infrastructure/traefik.tf` |
@@ -14,7 +14,6 @@ The self-hosted cluster: Argo CD hub, and the Terraform-managed Traefik and add-
 | `keda/` | KEDA values: event-driven autoscaling (ScaledObjects, ScaledJobs) ([README](keda/README.md)) | Terraform: `minikube-infrastructure/keda.tf` |
 | `namespaces/` | Namespace manifests | `./bootstrap-cluster.sh` |
 | `vault/`, `jfrog/`, `ecr-refresh/` | Optional components | Their own scripts and READMEs |
-| `harbor/` | Opt-in private registry ([README](harbor/README.md)) | Argo CD, `applications/optional/harbor.yaml`, by name only |
 | `examples/` | Templates. Nothing applies them. | By hand |
 
 Kustomize stays here: the catalog in `applications/kustomization.yaml` is part of how this cluster is deployed.

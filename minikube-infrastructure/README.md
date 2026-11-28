@@ -2,7 +2,7 @@
 
 Terraform root for the Minikube cluster `mk4`. The AWS account's Terraform (`infrastructure/`) is in the tools repository. One file per add-on, every add-on a
 `helm_release`. None of these are Argo CD Applications any more; the catalog in `deploy/minikube/applications` holds
-only the AppProject `mk-platform` and the opt-in `harbor`.
+only the AppProject `mk-platform`.
 
 | File | Release | Chart | Namespace | Values / source |
 |---|---|---|---|---|
@@ -24,7 +24,6 @@ only the AppProject `mk-platform` and the opt-in `harbor`.
 | `postgres.tf` | `cnpg` | cnpg `cloudnative-pg` 0.29.1 (operator 1.30.1) | `cnpg-system` | `deploy/minikube/postgres/operator.yaml` |
 | `postgres.tf` | `postgres-cluster`, `postgres-access` | cnpg `cluster` 0.9.0; local `deploy/minikube/postgres/access` | `postgres-db` | `deploy/minikube/postgres/cluster.yaml` + per-application databases/roles/Secrets from `postgres_databases`; pgAdmin 4 (+ admin Secret `postgres-ui-admin`), TCP route, gateway allowlists (`postgres_allowed_ips`), NetworkPolicies, metrics Service |
 | `argocd.tf` | `argocd` | argo `argo-cd` 10.10.5 (Argo CD v3.5.5) | `argocd` | `deploy/minikube/argocd/values.yaml`: https://jithendar.com/argocd (VirtualService delegate of the edge routing table, sidecar NetworkPolicy); no Redis of its own, its cache is Valkey tenant `argocd` (database 7, Secret `argocd-redis-valkey`) |
-| `harbor.tf` | `harbor-access`, `harbor` | local `deploy/minikube/harbor/access`; goharbor `harbor` 1.19.4 (Harbor v2.15.4, arm64 images from Docker Hub `jithendar/custom-harbour`) | `harbor` | https://registry.jithendar.com (https://jithendar.com/harbor redirects there); `deploy/minikube/harbor/values.yaml`; database on the shared PostgreSQL (`postgres_databases.registry`), Redis on Valkey (`redis_tenants.harbor`); namespace (in the mesh), generated `harbor-credentials` and `dockerhub-pull` (from `dockerhub_username`/`dockerhub_password`: CI secrets `DOCKER_USERNAME`/`DOCKER_PASSWORD`, locally `TF_VAR_dockerhub_*`) are Terraform's too ([README](../deploy/minikube/harbor/README.md)) |
 | `redis.tf` | `valkey`, `redis-access` | cloudpirates `valkey` 0.25.16 (Valkey 9.1, OCI); local `deploy/minikube/redis/access` | `redis` | `deploy/minikube/redis/values.yaml` + post-renderer `postrender-haproxy.sh`; per-application ACL users and Secrets from `redis_tenants`; STRICT mTLS + enforced AuthorizationPolicy, RedisInsight (gateway login `redis-ui-auth`), TCP route, gateway allowlists (`redis_allowed_ips`), NetworkPolicies, metrics Service |
 | `gatekeeper.tf` | `gatekeeper`, `gatekeeper-library`, `gatekeeper-constraints` | open-policy-agent `gatekeeper` 3.23.1; local `deploy/minikube/gatekeeper/library` and `constraints` | `gatekeeper-system` | `deploy/minikube/gatekeeper/values.yaml`: validating webhook (fails open) and audit; ConstraintTemplates vendored from gatekeeper-library; deny privileged, host namespaces, host network/ports, hostPath; warn on `:latest` and missing memory limits ([README](../deploy/minikube/gatekeeper/README.md)) |
 | `runners.tf` | `arc`, `arc-runners` | actions `gha-runner-scale-set-controller`, `gha-runner-scale-set` 0.15.1 (OCI, ghcr.io) | `runners-system`, `runners` | GitHub Actions runners for the organization mrjithendar (`github_runners_config_url`): controller and listener in `runners-system`; scale set `mk4` (`runs-on: mk4`) in `runners`, one ephemeral pod per job, internet-only NetworkPolicy, a privileged Docker daemon per runner pod (dind sidecar; Gatekeeper and Pod Security allow privileged in `runners` only); `deploy/minikube/runners/controller.yaml`, `values.yaml`; Secret `runners/github-app` from the GitHub App in CI secrets `RUNNERS_GITHUB_APP_*` of environment `mk4` ([README](../deploy/minikube/runners/README.md)) |
@@ -82,8 +81,8 @@ time (below).
   vector search. Removing a name leaves the extension installed.
 
 Removing an entry drops the role's Secrets and login; the database stays (`databaseReclaimPolicy: retain`) until
-dropped by hand. Listed today: `jithendar`, `moks`, `registry` (Harbor), `shipping` (RoboShop), `litellm` (moks-rag's
-LiteLLM, namespace `rag`). The first four stay empty until each application moves; `litellm` is used from the start
+dropped by hand. Listed today: `jithendar`, `moks`, `shipping` (RoboShop), `litellm` (moks-rag's
+LiteLLM, namespace `rag`). The first three stay empty until each application moves; `litellm` is used from the start
 (LiteLLM creates its tables itself, as the owner of its database).
 
 | From | Address |
@@ -165,7 +164,6 @@ isolated, keys are. Adding or changing a tenant rolls the StatefulSet (primary h
 |---|---|---|---|---|
 | `jithendar` | `jithendar` | 0 | site cache, sessions, rate limits: `REDIS_URL` = `uri` (jithendar.com `minikube/30-jithendar-com.yaml`) | `jithendar-redis` |
 | `practice` | `jithendar` | 1 | practice executor queue: `EXECUTOR_REDIS_URL` = `uri` (jithendar.com `minikube/practice-executor-40-executor.yaml`) | `practice-redis` |
-| `harbor` | `harbor` | 2 core, 3 jobservice, 4 registry, 5 trivy | `password` (miniKube `deploy/minikube/harbor/values.yaml`) | `harbor-redis` databases 0, 1, 2, 5 |
 | `argocd` (built in, `argocd.tf`) | `argocd` | 7 | Argo CD's cache: server, repo-server, application controller (`externalRedis`, Secret `argocd-redis-valkey` with `redis-username`/`redis-password`; `configs.params.redis.db`) | `argocd-redis` |
 | `roboshop` | `roboshop-ai` | 6 | cart-service, shipping-service: host/port/username/password/db (roboshop-ai `argocd-minikube`) | `roboshop-ai/redis` |
 | `litellm` | `rag` | 8 | LiteLLM: rate-limit and spend counters, model-change broadcast between pods; no response cache: `REDIS_URL` = `uri` (moks-rag `deploy/k8s/litellm.yaml`) | (none: in-memory before) |
@@ -192,7 +190,7 @@ terraform apply -var-file=vars/mk4.tfvars   # rolls Valkey (new ACL user), then 
 Argo CD's cache starts empty on Valkey: the first refresh of each application recomputes its manifests.
 
 **Memory.** `maxmemory 512mb`, `maxmemory-policy volatile-lru`: only keys with a TTL are evicted (caches, sessions),
-never queue entries (Harbor jobservice, the practice executor). When memory is full of keys without a TTL, writes fail
+never queue entries (the practice executor). When memory is full of keys without a TTL, writes fail
 with OOM; `ValkeyMemoryHigh` fires at 85 %. Raise `maxMemory` and the 1Gi limit together.
 
 | From | Address |
@@ -234,9 +232,6 @@ the apply if a chart upgrade removes the line it expects: check the new chart's 
    meshed: `redis` refuses plain text.
 2. Point the application at `redis-<name>-credentials` (its own repository: `uri`, or host/port/username/password/db).
    Caches and sessions (jithendar, roboshop) need no copy; a cutover only logs users out.
-   Harbor's jobservice keeps queued and scheduled jobs in its Redis: copy old database 1 to new 3 first (scale
-   jobservice to 0, then `MIGRATE valkey-master.redis.svc.cluster.local 6379 "" 3 5000 COPY AUTH2 harbor <password>
-   KEYS ...` from `harbor-redis-0`, keys from `SCAN`), and map the databases 0→2, 1→3, 2→4, 5→5 in `harbor/values.yaml`.
    The practice queue: drain it (no queued jobs) before switching.
 3. Start it, check it (`$K -n redis exec valkey-0 -c valkey -- sh -c 'REDISCLI_AUTH=$VALKEY_PASSWORD valkey-cli client
    list' | grep user=<name>`), then remove the old Redis Deployment/StatefulSet, Service, NetworkPolicy and Secret.

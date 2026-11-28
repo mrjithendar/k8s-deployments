@@ -47,7 +47,6 @@ grafana_public = {
 postgres_databases = {
   jithendar = { namespace = "jithendar" }                         # jithendar.com site; today jithendar/jithendar-postgres-0 (PG 18)
   moks      = { namespace = "moks-sre", extensions = ["vector"] } # MOKS portal; pgvector for its knowledge search (rag.backend postgres)
-  registry  = { namespace = "harbor" }                            # Harbor (harbor.tf): core and jobservice, database "registry"
   shipping  = { namespace = "roboshop-ai" }                       # RoboShop shipping; today roboshop-ai/shipping-db (PG 18)
   litellm   = { namespace = "rag" }                               # moks-rag LiteLLM: models, credentials, virtual keys (Admin UI /llm)
 }
@@ -56,10 +55,9 @@ postgres_databases = {
 # <namespace>/redis-<key>-credentials, which the application reads (no application runs its own Redis any more).
 # Argo CD is a built-in tenant (argocd.tf: user argocd, database 7); "argocd" and database 7 are reserved here.
 redis_tenants = {
-  practice = { namespace = "jithendar", databases = [1] }       # practice executor queue (EXECUTOR_REDIS_URL)
-  harbor   = { namespace = "harbor", databases = [2, 3, 4, 5] } # core, jobservice, registry, trivy
-  roboshop = { namespace = "roboshop-ai", databases = [6] }     # cart and shipping cache
-  litellm  = { namespace = "rag", databases = [8] }             # moks-rag LiteLLM: rate limits, spend counters, cross-pod model sync (REDIS_URL)
+  practice = { namespace = "jithendar", databases = [1] }   # practice executor queue (EXECUTOR_REDIS_URL)
+  roboshop = { namespace = "roboshop-ai", databases = [6] } # cart and shipping cache
+  litellm  = { namespace = "rag", databases = [8] }         # moks-rag LiteLLM: rate limits, spend counters, cross-pod model sync (REDIS_URL)
 }
 
 # GitHub Actions runners (runners.tf): one scale set for every repository of the organization mrjithendar

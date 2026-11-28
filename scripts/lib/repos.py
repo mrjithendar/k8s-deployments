@@ -20,7 +20,7 @@ SITE = Path(os.environ.get('JITHENDAR_COM_DIR', MINIKUBE.parent / 'jithendar.com
 ARGOCD = APP / 'argocd-eks'                         # roboshop-ai's Argo CD Applications for EKS
 MONITORING_ARGOCD = MINIKUBE / 'deploy/minikube/applications'             # mk4 catalog (AppProject mk-platform)
 CATALOGS = (MONITORING_ARGOCD,)
-# Opt-in Applications (Harbor): deployed only when named, never by "all"; validated with CATALOGS.
+# Opt-in Applications (none today): deployed only when named, never by "all"; validated with CATALOGS.
 OPTIONAL_ARGOCD = MONITORING_ARGOCD / 'optional'
 MINIKUBE_REPO = 'https://github.com/moks-tech/kubernetes.git'
 APP_REPO = 'https://github.com/mrjithendar/roboshop-ai.git'

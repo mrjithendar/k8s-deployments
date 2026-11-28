@@ -72,8 +72,8 @@ Order matters: each step keeps the site working.
    repository's Actions secrets as `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` (its deploy job sends them to
    Argo CD; without them the job keeps working until Access is enforced, then gets 403).
 6. **DNS**: turn the proxy (orange cloud) **on** for `jithendar.com` and `www` only. Keep these **DNS-only**:
-   `registry` (Harbor pushes exceed Cloudflare's 100 MB request limit), `postgres` and `redis` (TLS-wrapped TCP, not
-   HTTP), `jfrog`. Delete `db` (nothing serves it any more: HTTPS fails, HTTP answers 404).
+   `postgres` and `redis` (TLS-wrapped TCP, not HTTP), `jfrog`. Delete `db` and `registry` (nothing serves them any
+   more: HTTPS fails, HTTP answers 404).
 7. In `vars/mk4.tfvars`: `cloudflare_proxied = true`, apply. The gateway now takes the visitor address from
    `CF-Connecting-IP` (only from Cloudflare's ranges; anyone else sending that header gets 403). Check the site's
    access log shows your own address, not a Cloudflare one:

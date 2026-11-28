@@ -65,7 +65,7 @@ def source_drift(live, desired):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=
-        'Examples: ./deploy-argocd.sh harbor | '
+        'Examples: ./deploy-argocd.sh roboshop | '
         './deploy-argocd.sh status. Requires kubectl and Python with PyYAML. '
         'Apps deploy their configured Git revision; commit/push workload changes first.')
     parser.add_argument('apps', nargs='*', default=['all'],

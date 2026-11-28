@@ -137,6 +137,31 @@ variable "postgres_backups" {
   }
 }
 
+variable "tempo" {
+  description = "Grafana Tempo in place of Jaeger (tempo.tf, deploy/minikube/observability/tempo/README.md): every span the OpenTelemetry Collector accepts is written to a private Cloudflare R2 bucket and kept for retention; Grafana's Tempo data source reads it. null = Jaeger as before (in memory, the newest 5000 traces, lost on restart). The keys are not here: scripts/tempo/r2-secret.sh puts them in Secret observability/tempo-r2, which must exist first."
+  type = object({
+    account_id = string # Cloudflare account ID (the R2 endpoint is https://<account_id>.r2.cloudflarestorage.com)
+    bucket     = string # a bucket used only for traces
+    # How long a trace is kept, in hours/minutes/seconds (e.g. "2160h" is 90 days). Tempo has no "keep forever": its
+    # retention job always runs, and 0 would delete every block. No default: the owner sets it.
+    retention = string
+  })
+  default = null
+  validation {
+    condition     = var.tempo == null || can(regex("^[0-9a-f]{32}$", var.tempo.account_id))
+    error_message = "account_id is the 32-character hex Cloudflare account ID."
+  }
+  validation {
+    condition     = var.tempo == null || can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.tempo.bucket))
+    error_message = "bucket is an R2 bucket name: 3-63 lower-case letters, digits and hyphens, not starting or ending with a hyphen."
+  }
+  validation {
+    # Go durations (what Tempo parses): no "d" or "w". At least one non-zero number.
+    condition     = var.tempo == null || (can(regex("^([0-9]+h)?([0-9]+m)?([0-9]+s)?$", var.tempo.retention)) && can(regex("[1-9]", var.tempo.retention)))
+    error_message = "retention is a duration in h, m and s greater than zero, e.g. \"720h\" (30 days)."
+  }
+}
+
 variable "cloudflare_proxied" {
   description = "true once DNS records jithendar.com and www are proxied by Cloudflare (orange cloud). The edge then takes the visitor address from CF-Connecting-IP (only from Cloudflare's ranges), and the /postgres and /redis IP allowlists are replaced by Cloudflare Access (they would only ever see Cloudflare's addresses). registry., jfrog., postgres. and redis. must stay DNS-only."
   type        = bool
@@ -157,7 +182,7 @@ variable "cloudflare_access" {
 }
 
 variable "grafana_public" {
-  description = "Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Anonymous visitors become Viewers of the Grafana org \"Public\": Prometheus and Loki (not Jaeger), and the dashboards in mrjithendar/monitoring's dashboards/public/. The gateway serves /grafana only to Cloudflare, whose WAF rule asks each visitor to prove they are human, and /grafana leaves Cloudflare Access. null = Grafana needs a login, as before. Requires cloudflare_proxied. Create the org in Grafana first: provisioning into an org that does not exist stops Grafana from starting."
+  description = "Read-only Grafana for everyone (grafana.tf, docs/grafana-public.md). Anonymous visitors become Viewers of the Grafana org \"Public\": Prometheus and Loki (no traces), and the dashboards in mrjithendar/monitoring's dashboards/public/. The gateway serves /grafana only to Cloudflare, whose WAF rule asks each visitor to prove they are human, and /grafana leaves Cloudflare Access. null = Grafana needs a login, as before. Requires cloudflare_proxied. Create the org in Grafana first: provisioning into an org that does not exist stops Grafana from starting."
   type = object({
     org_id = number # the orgId Grafana returned when the org "Public" was created (never 1, the main org)
   })

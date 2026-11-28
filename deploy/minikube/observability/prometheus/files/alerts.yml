@@ -2,7 +2,7 @@ groups:
   - name: observability
     rules:
       - alert: ObservabilityTargetDown
-        expr: up{job=~"loki|alloy|otel-collector|jaeger"} == 0
+        expr: up{job=~"loki|alloy|otel-collector|jaeger|tempo"} == 0
         for: 5m
         labels:
           severity: warning
@@ -42,6 +42,33 @@ groups:
         annotations:
           summary: 'Jaeger uses {{ $value | humanizePercentage }} of its memory limit and may be OOM-killed'
           runbook_url: 'https://github.com/moks-tech/kubernetes/blob/master/deploy/minikube/observability/README.md#runbooks'
+      # Tempo (while var.tempo is set) writes a block to R2 about every 30 s. A failed write is retried; meanwhile the
+      # block waits on Tempo's volume, so nothing is lost unless the volume fills or goes away.
+      - alert: TempoBlocksNotStored
+        expr: sum(increase(tempo_live_store_failed_completions_total{job="tempo"}[15m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tempo failed to write {{ $value | humanize }} trace blocks to R2 in 15 min; they wait on its volume'
+          description: 'kubectl -n observability logs statefulset/tempo -c tempo | grep -i -E "complete|s3|r2". Usual causes: the R2 token (Secret tempo-r2) revoked or rotated, the bucket deleted.'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/deploy/minikube/observability/tempo/README.md#checks'
+      # Spans Tempo refused: its per-tenant limits (rate, trace size, live traces). They are lost.
+      - alert: TempoSpansDiscarded
+        expr: sum by (reason) (increase(tempo_discarded_spans_total{job="tempo"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tempo discarded {{ $value | humanize }} spans in 15 min ({{ $labels.reason }}); they are lost'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/deploy/minikube/observability/tempo/README.md#checks'
+      - alert: TempoMemoryNearLimit
+        expr: max(container_memory_working_set_bytes{namespace="observability", container="tempo"}) / max(container_spec_memory_limit_bytes{namespace="observability", container="tempo"} > 0) > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tempo uses {{ $value | humanizePercentage }} of its memory limit and may be OOM-killed (its volume keeps what was not written yet)'
+          runbook_url: 'https://github.com/mrjithendar/k8s-deployments/blob/master/deploy/minikube/observability/tempo/README.md#checks'
   # Health probes (/api/health) are excluded: they were about half of all requests and diluted both ratios.
   - name: jithendar-com
     rules:

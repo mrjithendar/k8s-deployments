@@ -48,8 +48,10 @@ processors:
   batch:
     timeout: 2s
 exporters:
-  otlp_http/jaeger:
-    endpoint: http://jaeger:4318
+  # The trace store: Jaeger (http://jaeger:4318), or Tempo (http://tempo:4318) while Terraform's var.tempo is set.
+  # Terraform passes it as the chart value tracesEndpoint (minikube-infrastructure/otel-collector.tf).
+  otlp_http/traces:
+    endpoint: ${env:TRACES_ENDPOINT}
 service:
   # Own metrics (accepted/refused/failed spans, queue size) for Prometheus job otel-collector. The default
   # listener is localhost only (other pods got "connection refused" on 2026-11-04).
@@ -65,4 +67,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, attributes/privacy, filter/routine, batch]
-      exporters: [otlp_http/jaeger]
+      exporters: [otlp_http/traces]

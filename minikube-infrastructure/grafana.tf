@@ -13,8 +13,8 @@ locals {
 
   # Read-only Grafana for everyone (var.grafana_public, docs/grafana-public.md). Anonymous visitors are Viewers of the
   # org "Public", which gets Prometheus and Loki with the main org's definitions (uids included, so the dashboards
-  # work unchanged) and the "public" dashboard provider. Jaeger stays in the main org: only the private Jithendar.com
-  # dashboards read traces, so Loki's derived fields (links into Jaeger) are dropped too. A Viewer can send any query
+  # work unchanged) and the "public" dashboard provider. Traces (Jaeger, or Tempo) stay in the main org: only the private
+  # Jithendar.com dashboards read them, so Loki's derived fields (links into traces) are dropped too. A Viewer can send any query
   # to every data source of its org; Loki holds every namespace's logs, visitor addresses included.
   grafana_public_org_name = "Public"
   grafana_public_org_id   = try(var.grafana_public.org_id, 1)
@@ -76,6 +76,25 @@ locals {
   })]
   # Grafana's container port (the chart's default; the Service's targetPort "grafana").
   grafana_port = 3000
+
+  # While var.tempo is set (tempo.tf): the main org's data sources with Tempo in place of Jaeger, and Loki's trace_id
+  # links pointing at Tempo (grafana/tempo.yaml). Grafana keeps provisioned data sources in its database after they
+  # leave the file, so Jaeger is deleted by name. Same file name as values.yaml's: Helm replaces its list whole, so no
+  # data source is defined twice.
+  grafana_tempo = yamldecode(file("${local.minikube}/observability/grafana/tempo.yaml"))
+  grafana_tempo_values = var.tempo == null ? [] : [yamlencode({
+    datasources = { "datasources.yaml" = {
+      apiVersion        = 1
+      deleteDatasources = [for ds in local.grafana_main_datasources : { name = ds.name, orgId = 1 } if ds.type == "jaeger"]
+      datasources = concat(
+        [for ds in local.grafana_main_datasources : ds if !contains(["jaeger", "loki"], ds.type)],
+        [for ds in local.grafana_main_datasources : merge(ds, {
+          jsonData = merge(ds.jsonData, { derivedFields = local.grafana_tempo.lokiDerivedFields })
+        }) if ds.type == "loki"],
+        [local.grafana_tempo.datasource],
+      )
+    } }
+  })]
 }
 
 # Nothing runs here: only the dashboards' ConfigMaps.
@@ -167,7 +186,8 @@ resource "helm_release" "grafana" {
   repository       = "https://grafana-community.github.io/helm-charts"
   chart            = "grafana"
   version          = "14.0.1"
-  values           = concat([file("${local.minikube}/observability/grafana/values.yaml")], local.grafana_public_values)
+  # The public org's document second (tests read it as values[1]), Tempo's last.
+  values = concat([file("${local.minikube}/observability/grafana/values.yaml")], local.grafana_public_values, local.grafana_tempo_values)
 
   # The live objects were rendered by the retired Argo CD Application (same release name), without a Helm release.
   take_ownership = true

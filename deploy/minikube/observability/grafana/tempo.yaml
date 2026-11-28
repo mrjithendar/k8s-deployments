@@ -1,0 +1,34 @@
+# Grafana's trace data source while Terraform's var.tempo is set (minikube-infrastructure/tempo.tf). grafana.tf then
+# provisions this data source instead of values.yaml's Jaeger (which it deletes from Grafana's database), and Loki's
+# trace_id links open traces here. Not a Helm values file: Terraform reads it and builds the data source list.
+datasource:
+  name: Tempo
+  uid: tempo
+  type: tempo
+  access: proxy
+  url: http://tempo.observability.svc.cluster.local:3200
+  isDefault: false
+  editable: false
+  jsonData:
+    nodeGraph:
+      enabled: true
+    # Search over plain HTTP: Tempo's gRPC streaming (stream_over_http_enabled) is off.
+    streamingEnabled:
+      search: false
+      metrics: false
+    # Span → log lines of the same trace, as with Jaeger. Every app that logs trace_id writes it as trace_id=<hex>.
+    tracesToLogsV2:
+      datasourceUid: roboshop-loki
+      spanStartTimeShift: "-5m"
+      spanEndTimeShift: "5m"
+      customQuery: true
+      query: '{namespace=~"jithendar|moks-sre"} |= "trace_id=$${__trace.traceId}"'
+
+# Loki's derived field: a log line's trace_id=<32 hex> opens the trace in Tempo. Replaces values.yaml's two Jaeger
+# fields (Jaeger data source and Jaeger UI); Tempo has no UI of its own, Grafana's Explore is it.
+lokiDerivedFields:
+  - name: TraceID
+    matcherRegex: "trace_id=([0-9a-f]{32})"
+    datasourceUid: tempo
+    url: "$${__value.raw}" # the TraceQL query: a bare trace ID; $$ escapes Grafana's env-var expansion
+    urlDisplayLabel: "View trace"
